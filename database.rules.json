@@ -1,0 +1,49 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+        ".write": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin')"
+      }
+    },
+    "projects": {
+      ".read": "auth != null",
+      ".indexOn": ["homeownerUid", "category", "budgetRange", "status", "createdAt"],
+      "$projectId": {
+        ".write": "auth != null && (data.child('homeownerUid').val() === auth.uid || !data.exists() || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+        "privateDetails": {
+          ".read": "auth != null && (root.child('projects').child($projectId).child('homeownerUid').val() === auth.uid || root.child('unlocks').child(auth.uid + '_' + $projectId).exists() || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+          ".write": "auth != null && (root.child('projects').child($projectId).child('homeownerUid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin')"
+        }
+      }
+    },
+    "unlocks": {
+      ".indexOn": ["contractorUid", "homeownerUid", "projectId"],
+      "$unlockId": {
+        ".read": "auth != null && (data.child('contractorUid').val() === auth.uid || data.child('homeownerUid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+        ".write": "auth != null && !data.exists()"
+      }
+    },
+    "transactions": {
+      ".indexOn": ["contractorUid", "timestamp", "type"],
+      "$transactionId": {
+        ".read": "auth != null && (data.child('contractorUid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+        ".write": "auth != null"
+      }
+    },
+    "conversations": {
+      ".indexOn": ["homeownerUid", "contractorUid", "projectId", "lastMessageTimestamp"],
+      "$conversationId": {
+        ".read": "auth != null && (data.child('homeownerUid').val() === auth.uid || data.child('contractorUid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+        ".write": "auth != null && (data.child('homeownerUid').val() === auth.uid || data.child('contractorUid').val() === auth.uid || !data.exists())"
+      }
+    },
+    "bids": {
+      ".indexOn": ["contractorUid", "homeownerUid", "projectId", "status"],
+      "$bidId": {
+        ".read": "auth != null && (data.child('contractorUid').val() === auth.uid || data.child('homeownerUid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+        ".write": "auth != null && (data.child('contractorUid').val() === auth.uid || !data.exists() || root.child('users').child(auth.uid).child('role').val() === 'admin')"
+      }
+    }
+  }
+}

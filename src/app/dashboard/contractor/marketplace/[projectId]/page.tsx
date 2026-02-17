@@ -40,7 +40,6 @@ import {
   HiClipboardCheck,
   HiShieldCheck,
   HiTruck,
-  HiClock,
 } from "react-icons/hi";
 
 export default function ContractorProjectDetailPage() {

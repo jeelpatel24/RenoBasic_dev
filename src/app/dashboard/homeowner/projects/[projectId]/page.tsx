@@ -6,7 +6,6 @@ import { ref, get } from "firebase/database";
 import { db } from "@/lib/firebase";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { useAuth } from "@/contexts/AuthContext";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
 import {
@@ -36,7 +35,6 @@ import {
 export default function HomeownerProjectDetailPage() {
   const params = useParams();
   const projectId = params.projectId as string;
-  const { userProfile } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
   const [bids, setBids] = useState<Bid[]>([]);
   const [loading, setLoading] = useState(true);

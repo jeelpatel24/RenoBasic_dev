@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,7 +24,7 @@ export default function HomeownerBidsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "submitted" | "accepted" | "rejected">("all");
 
-  const fetchBids = async () => {
+  const fetchBids = useCallback(async () => {
     if (!userProfile) return;
     try {
       const data = await getHomeownerBids(userProfile.uid);
@@ -34,11 +34,11 @@ export default function HomeownerBidsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userProfile]);
 
   useEffect(() => {
     fetchBids();
-  }, [userProfile]);
+  }, [fetchBids]);
 
   const handleStatusUpdate = async (bidId: string, status: "accepted" | "rejected") => {
     setActionLoading(bidId);

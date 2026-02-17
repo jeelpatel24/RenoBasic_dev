@@ -13,8 +13,6 @@ import {
   HiCog,
   HiUser,
   HiMail,
-  HiPhone,
-  HiShieldCheck,
   HiCheckCircle,
   HiExclamation,
   HiCalendar,

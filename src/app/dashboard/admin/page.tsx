@@ -9,7 +9,7 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import toast from "react-hot-toast";
-import { HiUsers, HiShieldCheck, HiClipboardList, HiChartBar, HiCreditCard, HiChat, HiCollection } from "react-icons/hi";
+import { HiUsers, HiShieldCheck, HiClipboardList, HiCreditCard, HiChat, HiCollection } from "react-icons/hi";
 
 export default function AdminDashboard() {
   const [pendingContractors, setPendingContractors] = useState<ContractorUser[]>([]);

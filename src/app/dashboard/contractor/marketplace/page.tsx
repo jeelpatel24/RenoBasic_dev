@@ -24,7 +24,6 @@ import toast from "react-hot-toast";
 import {
   HiClipboardList,
   HiLocationMarker,
-  HiCurrencyDollar,
   HiCreditCard,
   HiLockOpen,
   HiFilter,
@@ -32,7 +31,6 @@ import {
   HiExclamation,
   HiEye,
   HiCalendar,
-  HiHome,
   HiLockClosed,
 } from "react-icons/hi";
 

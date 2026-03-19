@@ -13,6 +13,7 @@ service cloud.firestore {
     }
 
     // Users collection
+    // NOTE: No delete allowed for any role — account deletion is disabled by policy.
     match /users/{userId} {
       // Users can read their own document
       allow read: if request.auth.uid == userId;
@@ -20,24 +21,25 @@ service cloud.firestore {
       allow read: if isAuthenticated() && userId != request.auth.uid;
       // Admin can read all users
       allow read: if isAdmin();
-      // Users can write their own doc only
-      allow write: if request.auth.uid == userId;
-      // Admin can write all users
-      allow write: if isAdmin();
+      // Users can create/update their own doc only — NO delete
+      allow create, update: if request.auth.uid == userId;
+      // Admin can create/update all users — NO delete
+      allow create, update: if isAdmin();
     }
 
     // Projects collection
+    // NOTE: Projects cannot be deleted. To deactivate, set status to "closed".
     match /projects/{projectId} {
       // Authenticated users can read
       allow read: if isAuthenticated();
       // Homeowners can create projects for themselves only
       allow create: if isAuthenticated() &&
                        request.resource.data.homeownerUid == request.auth.uid;
-      // Homeowners can update/delete their own projects
-      allow update, delete: if isAuthenticated() &&
-                               resource.data.homeownerUid == request.auth.uid;
-      // Admin can write all
-      allow write: if isAdmin();
+      // Homeowners can update their own projects — NO delete
+      allow update: if isAuthenticated() &&
+                       resource.data.homeownerUid == request.auth.uid;
+      // Admin can create/update all — NO delete
+      allow create, update: if isAdmin();
     }
 
     // Unlocks collection
@@ -47,7 +49,7 @@ service cloud.firestore {
       // Contractors can only create unlocks for themselves
       allow create: if isAuthenticated() &&
                        request.resource.data.contractorUid == request.auth.uid;
-      // Admins can update/delete
+      // Admins can update/delete unlocks (admin maintenance only)
       allow update, delete: if isAdmin();
     }
 
@@ -66,18 +68,25 @@ service cloud.firestore {
     }
 
     // Conversations collection
+    // NOTE: Conversations and messages cannot be deleted by anyone.
     match /conversations/{conversationId} {
-      // Only participants or admin can read/write
-      allow read, write: if isAuthenticated() &&
-                            (request.auth.uid == resource.data.homeownerUid ||
-                             request.auth.uid == resource.data.contractorUid ||
-                             isAdmin());
-      // Participants can create conversations
+      // Only participants or admin can read
+      allow read: if isAuthenticated() &&
+                     (request.auth.uid == resource.data.homeownerUid ||
+                      request.auth.uid == resource.data.contractorUid ||
+                      isAdmin());
+      // Only participants or admin can update (e.g. lastMessage, messageCount)
+      allow update: if isAuthenticated() &&
+                       (request.auth.uid == resource.data.homeownerUid ||
+                        request.auth.uid == resource.data.contractorUid ||
+                        isAdmin());
+      // Participants can create conversations — NO delete for anyone
       allow create: if isAuthenticated() &&
                        (request.resource.data.contractorUid == request.auth.uid ||
                         request.resource.data.homeownerUid == request.auth.uid);
 
       // Messages subcollection
+      // NOTE: Messages cannot be deleted — no delete rule.
       match /messages/{messageId} {
         // Only participants or admin can read
         allow read: if isAuthenticated() &&
@@ -89,12 +98,11 @@ service cloud.firestore {
                          request.resource.data.senderId == request.auth.uid &&
                          (request.auth.uid == get(/databases/$(database)/documents/conversations/$(conversationId)).data.homeownerUid ||
                           request.auth.uid == get(/databases/$(database)/documents/conversations/$(conversationId)).data.contractorUid);
-        // Participants can update messages (e.g. mark as read)
+        // Participants can update messages (e.g. mark as read) — NO delete
         allow update: if isAuthenticated() &&
                          (request.auth.uid == get(/databases/$(database)/documents/conversations/$(conversationId)).data.homeownerUid ||
                           request.auth.uid == get(/databases/$(database)/documents/conversations/$(conversationId)).data.contractorUid ||
                           isAdmin());
-        allow delete: if isAdmin();
       }
     }
 
@@ -118,6 +126,7 @@ service cloud.firestore {
     }
 
     // Notifications collection
+    // NOTE: Notifications cannot be deleted — only marked as read.
     match /notifications/{notificationId} {
       // Users can read their own notifications
       allow read: if isAuthenticated() &&
@@ -129,8 +138,8 @@ service cloud.firestore {
                        request.auth.uid == resource.data.recipientUid;
       // Authenticated users can create notifications (bid received, project unlocked, etc.)
       allow create: if isAuthenticated();
-      // Admin can write all
-      allow write: if isAdmin();
+      // Admin can create/update notifications — NO delete
+      allow create, update: if isAdmin();
     }
 
     // Settings (admin-managed only)

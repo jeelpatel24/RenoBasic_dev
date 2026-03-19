@@ -86,7 +86,7 @@ export default function HomeownerProjectDetailPage() {
     }
   };
 
-  const handleStatusChange = async (newStatus: "in_progress" | "completed") => {
+  const handleStatusChange = async (newStatus: "in_progress" | "completed" | "closed") => {
     if (!project) return;
     setStatusLoading(true);
     try {
@@ -313,7 +313,7 @@ export default function HomeownerProjectDetailPage() {
               </div>
 
               {/* Status Actions */}
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3 items-center">
                 {project?.status === "open" && (
                   <Button
                     size="sm"
@@ -332,8 +332,26 @@ export default function HomeownerProjectDetailPage() {
                     Mark Complete
                   </Button>
                 )}
-                {(project?.status === "open" || project?.status === "in_progress") && (
-                  <p className="text-xs text-gray-500 flex items-center">Current: {project?.status.replace("_", " ")}</p>
+                {project?.status !== "closed" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleStatusChange("closed")}
+                    loading={statusLoading}
+                    className="border-red-200 text-red-600 hover:bg-red-50"
+                  >
+                    Close Project
+                  </Button>
+                )}
+                {project?.status === "closed" && (
+                  <span className="text-sm text-red-600 font-medium flex items-center gap-1">
+                    This project is closed.
+                  </span>
+                )}
+                {project?.status !== "closed" && (
+                  <p className="text-xs text-gray-500 flex items-center">
+                    Current: {project?.status.replace("_", " ")}
+                  </p>
                 )}
               </div>
             </div>

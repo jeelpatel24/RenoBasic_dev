@@ -2,6 +2,7 @@ import { db } from "@/lib/firebase";
 import {
   doc,
   setDoc,
+  deleteDoc,
   collection,
   addDoc,
   updateDoc,
@@ -9,6 +10,7 @@ import {
   where,
   getDocs,
   orderBy,
+  limit,
   onSnapshot,
   Unsubscribe,
   increment,
@@ -122,6 +124,33 @@ export async function markMessagesAsRead(
   });
 
   await batch.commit();
+}
+
+/**
+ * Delete a conversation and all its messages.
+ * Messages are deleted in batches of 400 to stay well under the 500-op Firestore limit.
+ * The conversation document is deleted last.
+ */
+export async function deleteConversation(conversationId: string): Promise<void> {
+  const messagesRef = collection(db, "conversations", conversationId, "messages");
+
+  // Delete all messages in batches (loop until none left)
+  let hasMore = true;
+  while (hasMore) {
+    const snap = await getDocs(query(messagesRef, limit(400)));
+    if (snap.empty) {
+      hasMore = false;
+      break;
+    }
+    const batch = writeBatch(db);
+    snap.forEach((msgDoc) => batch.delete(msgDoc.ref));
+    await batch.commit();
+    // If fewer than 400 were returned, there are no more
+    if (snap.size < 400) hasMore = false;
+  }
+
+  // Delete the conversation document itself
+  await deleteDoc(doc(db, "conversations", conversationId));
 }
 
 /**

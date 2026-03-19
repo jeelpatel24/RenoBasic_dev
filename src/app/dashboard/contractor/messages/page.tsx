@@ -12,14 +12,11 @@ import {
   subscribeToMessages,
   sendMessage,
   markMessagesAsRead,
+  deleteConversation,
 } from "@/lib/messages";
 import toast from "react-hot-toast";
 import { formatTime } from "@/lib/utils";
-import {
-  HiChat,
-  HiPaperAirplane,
-  HiArrowLeft,
-} from "react-icons/hi";
+import { HiChat, HiPaperAirplane, HiArrowLeft, HiTrash, HiExclamation } from "react-icons/hi";
 
 export default function ContractorMessagesPage() {
   return (
@@ -40,6 +37,10 @@ function ContractorMessagesInner() {
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Delete conversation state
+  const [confirmDeleteConvId, setConfirmDeleteConvId] = useState<string | null>(null);
+  const [deletingConv, setDeletingConv] = useState(false);
 
   // Subscribe to conversations
   useEffect(() => {
@@ -83,7 +84,25 @@ function ContractorMessagesInner() {
     }
   };
 
+  const handleDeleteConversation = async () => {
+    if (!confirmDeleteConvId) return;
+    const convId = confirmDeleteConvId;
+    setConfirmDeleteConvId(null);
+    setDeletingConv(true);
+    try {
+      await deleteConversation(convId);
+      // If the deleted conversation was open, close the chat panel
+      if (activeConv === convId) setActiveConv(null);
+      toast.success("Conversation deleted.");
+    } catch {
+      toast.error("Failed to delete conversation.");
+    } finally {
+      setDeletingConv(false);
+    }
+  };
+
   const activeConversation = conversations.find((c) => c.id === activeConv);
+  const confirmDeleteConv = conversations.find((c) => c.id === confirmDeleteConvId);
 
   return (
     <ProtectedRoute allowedRoles={["contractor"]}>
@@ -107,17 +126,33 @@ function ContractorMessagesInner() {
                   </div>
                 ) : (
                   conversations.map((conv) => (
-                    <button
+                    <div
                       key={conv.id}
-                      onClick={() => setActiveConv(conv.id)}
-                      className={`w-full text-left p-4 border-b border-gray-50 hover:bg-gray-50 transition-colors ${
-                        activeConv === conv.id ? "bg-orange-50 border-l-2 border-l-orange-500" : ""
+                      className={`group relative border-b border-gray-50 ${
+                        activeConv === conv.id ? "bg-orange-50 border-l-2 border-l-orange-500" : "hover:bg-gray-50"
                       }`}
                     >
-                      <p className="font-medium text-gray-900 text-sm">{conv.homeownerName}</p>
-                      <p className="text-xs text-orange-600 mt-0.5">{conv.projectCategory}</p>
-                      <p className="text-xs text-gray-500 mt-1 truncate">{conv.lastMessage || "No messages yet"}</p>
-                    </button>
+                      <button
+                        onClick={() => setActiveConv(conv.id)}
+                        className="w-full text-left p-4 pr-10 transition-colors"
+                      >
+                        <p className="font-medium text-gray-900 text-sm">{conv.homeownerName}</p>
+                        <p className="text-xs text-orange-600 mt-0.5">{conv.projectCategory}</p>
+                        <p className="text-xs text-gray-500 mt-1 truncate">{conv.lastMessage || "No messages yet"}</p>
+                      </button>
+                      {/* Delete button — visible on hover */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmDeleteConvId(conv.id);
+                        }}
+                        disabled={deletingConv}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        title="Delete conversation"
+                      >
+                        <HiTrash size={15} />
+                      </button>
+                    </div>
                   ))
                 )}
               </div>
@@ -128,17 +163,28 @@ function ContractorMessagesInner() {
               {activeConv && activeConversation ? (
                 <>
                   {/* Chat Header */}
-                  <div className="p-4 border-b border-gray-100 flex items-center gap-3">
-                    <button
-                      className="md:hidden text-gray-500"
-                      onClick={() => setActiveConv(null)}
-                    >
-                      <HiArrowLeft size={20} />
-                    </button>
-                    <div>
-                      <p className="font-medium text-gray-900">{activeConversation.homeownerName}</p>
-                      <p className="text-xs text-orange-600">{activeConversation.projectCategory}</p>
+                  <div className="p-4 border-b border-gray-100 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <button
+                        className="md:hidden text-gray-500"
+                        onClick={() => setActiveConv(null)}
+                      >
+                        <HiArrowLeft size={20} />
+                      </button>
+                      <div>
+                        <p className="font-medium text-gray-900">{activeConversation.homeownerName}</p>
+                        <p className="text-xs text-orange-600">{activeConversation.projectCategory}</p>
+                      </div>
                     </div>
+                    {/* Delete from header */}
+                    <button
+                      onClick={() => setConfirmDeleteConvId(activeConv)}
+                      disabled={deletingConv}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Delete conversation"
+                    >
+                      <HiTrash size={18} />
+                    </button>
                   </div>
 
                   {/* Messages */}
@@ -196,7 +242,44 @@ function ContractorMessagesInner() {
           </div>
         </div>
       </DashboardLayout>
+
+      {/* Delete Conversation Confirmation Modal */}
+      {confirmDeleteConvId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                <HiExclamation size={20} className="text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Delete Conversation?</h3>
+                <p className="text-sm text-gray-500">This cannot be undone.</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">
+              All messages with{" "}
+              <span className="font-semibold">{confirmDeleteConv?.homeownerName}</span>{" "}
+              about{" "}
+              <span className="font-semibold">{confirmDeleteConv?.projectCategory}</span>{" "}
+              will be permanently deleted.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDeleteConvId(null)}
+                className="flex-1 px-4 py-2 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConversation}
+                className="flex-1 px-4 py-2 rounded-xl bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </ProtectedRoute>
   );
 }
-

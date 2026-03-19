@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -24,6 +24,10 @@ export default function AdminUsersPage() {
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteReviewId, setConfirmDeleteReviewId] = useState<string | null>(null);
+
+  // Delete user state
+  const [confirmDeleteUser, setConfirmDeleteUser] = useState<AppUser | null>(null);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -68,6 +72,24 @@ export default function AdminUsersPage() {
       toast.error("Failed to delete review.");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!confirmDeleteUser) return;
+    const user = confirmDeleteUser;
+    setConfirmDeleteUser(null);
+    setDeletingUserId(user.uid);
+    try {
+      // Close reviews modal if this user's reviews were open
+      if (reviewsModalUser?.uid === user.uid) setReviewsModalUser(null);
+      await deleteDoc(doc(db, "users", user.uid));
+      // onSnapshot will automatically remove them from the users list
+      toast.success(`${user.fullName}'s account has been deleted.`);
+    } catch {
+      toast.error("Failed to delete user account.");
+    } finally {
+      setDeletingUserId(null);
     }
   };
 
@@ -240,15 +262,30 @@ export default function AdminUsersPage() {
                         {formatDate(user.createdAt)}
                       </td>
                       <td className="px-4 py-3">
-                        {user.role === "contractor" && (
+                        <div className="flex items-center gap-2">
+                          {user.role === "contractor" && (
+                            <button
+                              onClick={() => openReviews(user)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
+                            >
+                              <HiStar size={13} className="text-amber-500" />
+                              Reviews
+                            </button>
+                          )}
                           <button
-                            onClick={() => openReviews(user)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
+                            onClick={() => setConfirmDeleteUser(user)}
+                            disabled={deletingUserId === user.uid}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
+                            title="Delete user account"
                           >
-                            <HiStar size={13} className="text-amber-500" />
-                            Reviews
+                            {deletingUserId === user.uid ? (
+                              <div className="w-3 h-3 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <HiTrash size={13} />
+                            )}
+                            Delete
                           </button>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -391,6 +428,45 @@ export default function AdminUsersPage() {
           </div>
         )}
       </DashboardLayout>
+
+      {/* Delete User Confirmation Modal */}
+      {confirmDeleteUser && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                <HiExclamation size={20} className="text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Delete User Account?</h3>
+                <p className="text-sm text-gray-500">This cannot be undone.</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 mb-2">
+              This will permanently delete{" "}
+              <span className="font-semibold">{confirmDeleteUser.fullName}</span>
+              &apos;s Firestore profile.
+            </p>
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-6">
+              Note: Their Firebase login credentials remain until removed from the Firebase Console.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDeleteUser(null)}
+                className="flex-1 px-4 py-2 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteUser}
+                className="flex-1 px-4 py-2 rounded-xl bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors"
+              >
+                Delete Account
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </ProtectedRoute>
   );
 }

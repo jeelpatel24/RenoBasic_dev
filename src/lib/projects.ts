@@ -3,11 +3,13 @@ import {
   doc,
   getDoc,
   updateDoc,
+  deleteDoc,
   collection,
   query,
   where,
   getDocs,
   runTransaction,
+  writeBatch,
 } from "firebase/firestore";
 import { ProjectUnlock, ProjectPrivateDetails } from "@/types";
 
@@ -102,6 +104,29 @@ export async function updateProjectStatus(
     status,
     updatedAt: new Date().toISOString(),
   });
+}
+
+/**
+ * Delete a project and all its associated bids.
+ * Only the homeowner who owns the project (or admin) should call this.
+ * Bids are batch-deleted first to avoid orphaned records.
+ */
+export async function deleteProject(projectId: string): Promise<void> {
+  // Delete all bids for this project first
+  const bidsQ = query(
+    collection(db, "bids"),
+    where("projectId", "==", projectId)
+  );
+  const bidsSnap = await getDocs(bidsQ);
+
+  if (!bidsSnap.empty) {
+    const batch = writeBatch(db);
+    bidsSnap.forEach((bidDoc) => batch.delete(bidDoc.ref));
+    await batch.commit();
+  }
+
+  // Delete the project document
+  await deleteDoc(doc(db, "projects", projectId));
 }
 
 /**

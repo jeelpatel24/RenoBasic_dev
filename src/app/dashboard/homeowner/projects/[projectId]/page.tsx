@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
@@ -20,6 +20,7 @@ import {
 } from "@/types";
 import { getBidsForProject, updateBidStatus } from "@/lib/bids";
 import { createNotification } from "@/lib/notifications";
+import { deleteProject } from "@/lib/projects";
 import toast from "react-hot-toast";
 // import { formatDate } from "@/lib/utils";
 import {
@@ -32,10 +33,13 @@ import {
   HiDocumentText,
   HiHome,
   HiCalendar,
+  HiTrash,
+  HiExclamation,
 } from "react-icons/hi";
 
 export default function HomeownerProjectDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const projectId = params.projectId as string;
   const [project, setProject] = useState<Project | null>(null);
   const [bids, setBids] = useState<Bid[]>([]);
@@ -43,6 +47,8 @@ export default function HomeownerProjectDetailPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const [showBidComparison, setShowBidComparison] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deletingProject, setDeletingProject] = useState(false);
 
   useEffect(() => {
     if (!projectId) return;
@@ -102,6 +108,19 @@ export default function HomeownerProjectDetailPage() {
       toast.error("Failed to update project status");
     } finally {
       setStatusLoading(false);
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    setConfirmDelete(false);
+    setDeletingProject(true);
+    try {
+      await deleteProject(projectId);
+      toast.success("Project deleted.");
+      router.push("/dashboard/homeowner/projects");
+    } catch {
+      toast.error("Failed to delete project.");
+      setDeletingProject(false);
     }
   };
 
@@ -354,6 +373,23 @@ export default function HomeownerProjectDetailPage() {
                   </p>
                 )}
               </div>
+
+              {/* Delete Project */}
+              <div className="pt-4 border-t border-gray-100 mt-2">
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={() => setConfirmDelete(true)}
+                  loading={deletingProject}
+                  className="flex items-center gap-2"
+                >
+                  <HiTrash size={15} />
+                  Delete Project
+                </Button>
+                <p className="text-xs text-gray-400 mt-1.5">
+                  Permanently deletes this project and all its bids.
+                </p>
+              </div>
             </div>
           </div>
 
@@ -476,6 +512,42 @@ export default function HomeownerProjectDetailPage() {
           </div>
         </div>
       </DashboardLayout>
+
+      {/* Delete Project Confirmation Modal */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                <HiExclamation size={20} className="text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Delete Project?</h3>
+                <p className="text-sm text-gray-500">This cannot be undone.</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">
+              This will permanently delete{" "}
+              <span className="font-semibold">&quot;{project?.projectTitle}&quot;</span>{" "}
+              and all bids submitted for it.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="flex-1 px-4 py-2 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteProject}
+                className="flex-1 px-4 py-2 rounded-xl bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors"
+              >
+                Delete Project
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </ProtectedRoute>
   );
 }

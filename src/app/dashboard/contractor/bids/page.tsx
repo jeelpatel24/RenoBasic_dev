@@ -8,7 +8,9 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import { Bid } from "@/types";
+import { withdrawBid } from "@/lib/bids";
 import { formatDate } from "@/lib/utils";
+import toast from "react-hot-toast";
 import {
   HiCollection,
   HiClock,
@@ -16,6 +18,8 @@ import {
   HiCheckCircle,
   HiXCircle,
   HiArrowRight,
+  HiTrash,
+  HiExclamation,
 } from "react-icons/hi";
 
 export default function ContractorBidsPage() {
@@ -23,6 +27,29 @@ export default function ContractorBidsPage() {
   const [bids, setBids] = useState<Bid[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "submitted" | "accepted" | "rejected">("all");
+  const [withdrawing, setWithdrawing] = useState<string | null>(null);
+  const [confirmBid, setConfirmBid] = useState<Bid | null>(null);
+
+  const handleWithdrawClick = (e: React.MouseEvent, bid: Bid) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setConfirmBid(bid);
+  };
+
+  const handleConfirmWithdraw = async () => {
+    if (!confirmBid) return;
+    const bid = confirmBid;
+    setConfirmBid(null);
+    setWithdrawing(bid.id);
+    try {
+      await withdrawBid(bid.id);
+      toast.success("Bid withdrawn successfully.");
+    } catch {
+      toast.error("Failed to withdraw bid.");
+    } finally {
+      setWithdrawing(null);
+    }
+  };
 
   useEffect(() => {
     if (!userProfile) return;
@@ -128,15 +155,63 @@ export default function ContractorBidsPage() {
                         Submitted {formatDate(bid.submittedAt)}
                       </p>
                     </div>
-                    <HiArrowRight size={18} className="text-gray-400 shrink-0 mt-1" />
+                    <div className="flex items-center gap-2 shrink-0">
+                      {bid.status === "submitted" && (
+                        <button
+                          onClick={(e) => handleWithdrawClick(e, bid)}
+                          disabled={withdrawing === bid.id}
+                          title="Withdraw bid"
+                          className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50"
+                        >
+                          <HiTrash size={16} />
+                        </button>
+                      )}
+                      <HiArrowRight size={18} className="text-gray-400 mt-1" />
+                    </div>
                   </div>
                 </Link>
               ))}
             </div>
           )}
         </div>
+
+        {/* Withdraw Confirmation Modal */}
+        {confirmBid && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <HiExclamation size={20} className="text-red-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">Withdraw Bid</h3>
+                  <p className="text-sm text-gray-500">This action cannot be undone.</p>
+                </div>
+              </div>
+              <p className="text-sm text-gray-600 mb-6">
+                Are you sure you want to withdraw your{" "}
+                <span className="font-medium text-gray-800">${confirmBid.totalCost.toFixed(0)}</span>{" "}
+                bid for{" "}
+                <span className="font-medium text-gray-800">{confirmBid.projectCategory}</span>?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmBid(null)}
+                  className="flex-1 px-4 py-2 rounded-xl border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmWithdraw}
+                  className="flex-1 px-4 py-2 rounded-xl bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors"
+                >
+                  Withdraw Bid
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </DashboardLayout>
     </ProtectedRoute>
   );
 }
-

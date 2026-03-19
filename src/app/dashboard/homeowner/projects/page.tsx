@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { collection, addDoc, query, where, onSnapshot, orderBy } from "firebase/firestore";
+import { updateProjectStatus } from "@/lib/projects";
 // import { ref, uploadBytes, getDownloadURL } from "firebase/storage"; // TODO: enable when Firebase Storage is activated
 import { db } from "@/lib/firebase";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
@@ -38,7 +39,7 @@ import {
   HiDocumentText,
   HiHome,
   HiChat,
-  HiCalendar,
+  HiPhone,
   HiCheckCircle,
 } from "react-icons/hi";
 
@@ -103,6 +104,25 @@ export default function HomeownerProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [successMessage, setSuccessMessage] = useState("");
+  const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
+
+  const handleStatusUpdate = async (
+    e: React.MouseEvent | React.ChangeEvent,
+    projectId: string,
+    newStatus: "open" | "in_progress" | "completed" | "closed"
+  ) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setStatusUpdating(projectId);
+    try {
+      await updateProjectStatus(projectId, newStatus);
+      toast.success("Project status updated!");
+    } catch {
+      toast.error("Failed to update project status.");
+    } finally {
+      setStatusUpdating(null);
+    }
+  };
 
   /* ── fetch user's existing projects ─────────────────────────────── */
   useEffect(() => {
@@ -858,7 +878,7 @@ export default function HomeownerProjectsPage() {
                     {[
                       { value: "in_app", label: "In-App Messaging", icon: HiChat },
                       { value: "email", label: "Email", icon: HiDocumentText },
-                      { value: "phone", label: "Phone", icon: HiCalendar },
+                      { value: "phone", label: "Phone", icon: HiPhone },
                     ].map((opt) => (
                       <label
                         key={opt.value}
@@ -956,8 +976,18 @@ export default function HomeownerProjectsPage() {
                             {project.budgetLabel ||
                               BUDGET_LABELS[project.budgetRange]}
                           </span>
-                          <span
-                            className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                          <select
+                            value={project.status}
+                            disabled={statusUpdating === project.id}
+                            onClick={(e) => e.preventDefault()}
+                            onChange={(e) =>
+                              handleStatusUpdate(
+                                e,
+                                project.id,
+                                e.target.value as "open" | "in_progress" | "completed" | "closed"
+                              )
+                            }
+                            className={`text-xs font-medium px-2.5 py-1 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-400 ${
                               project.status === "open"
                                 ? "bg-green-100 text-green-700"
                                 : project.status === "in_progress"
@@ -965,16 +995,13 @@ export default function HomeownerProjectsPage() {
                                 : project.status === "completed"
                                 ? "bg-gray-100 text-gray-700"
                                 : "bg-red-100 text-red-700"
-                            }`}
+                            } ${statusUpdating === project.id ? "opacity-50 cursor-not-allowed" : ""}`}
                           >
-                            {project.status === "open"
-                              ? "Open"
-                              : project.status === "in_progress"
-                              ? "In Progress"
-                              : project.status === "completed"
-                              ? "Completed"
-                              : "Closed"}
-                          </span>
+                            <option value="open">Open</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="completed">Completed</option>
+                            <option value="closed">Closed</option>
+                          </select>
                         </div>
                         <div className="flex flex-wrap items-center gap-4 mt-3 text-xs text-gray-500">
                           <span className="flex items-center gap-1">

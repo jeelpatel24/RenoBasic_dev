@@ -283,3 +283,18 @@ export interface BidItem {
   cost: number;
 }
 
+// ── Reviews ────────────────────────────────────────────────────────
+export interface Review {
+  id: string;
+  contractorUid: string;
+  homeownerUid: string;
+  homeownerName: string;
+  projectId: string;
+  bidId: string;
+  rating: number; // 1–5
+  comment: string;
+  projectCategory: string;
+  contractorName: string;
+  createdAt: string;
+}
+

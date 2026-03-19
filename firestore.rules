@@ -109,6 +109,10 @@ service cloud.firestore {
       allow update: if isAuthenticated() &&
                        exists(/databases/$(database)/documents/projects/$(resource.data.projectId)) &&
                        get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data.homeownerUid == request.auth.uid;
+      // Contractors can withdraw (delete) their own submitted bids only
+      allow delete: if isAuthenticated() &&
+                       resource.data.contractorUid == request.auth.uid &&
+                       resource.data.status == "submitted";
       // Admin can do all
       allow write: if isAdmin();
     }
@@ -133,6 +137,17 @@ service cloud.firestore {
     match /settings/{settingId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
+    }
+
+    // Reviews collection
+    match /reviews/{reviewId} {
+      // Anyone authenticated can read reviews (public contractor reputation)
+      allow read: if isAuthenticated();
+      // Homeowners can create a review only as themselves
+      allow create: if isAuthenticated() &&
+                       request.resource.data.homeownerUid == request.auth.uid;
+      // Reviews are immutable — only admin can modify/delete
+      allow update, delete: if isAdmin();
     }
 
     // Catch-all deny

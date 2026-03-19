@@ -3,6 +3,7 @@ import {
   collection,
   addDoc,
   updateDoc,
+  deleteDoc,
   doc,
   query,
   where,
@@ -44,6 +45,13 @@ export async function updateBidStatus(
 ): Promise<void> {
   const bidRef = doc(db, "bids", bidId);
   await updateDoc(bidRef, { status });
+}
+
+/**
+ * Withdraw (delete) a submitted bid. Only allowed when status is "submitted".
+ */
+export async function withdrawBid(bidId: string): Promise<void> {
+  await deleteDoc(doc(db, "bids", bidId));
 }
 
 /**

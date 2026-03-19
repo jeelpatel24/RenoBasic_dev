@@ -17,9 +17,8 @@ import {
   HiStar,
 } from "react-icons/hi";
 
-export default function NotificationsPage() {
-  const { firebaseUser, userProfile } = useAuth();
-  const role = userProfile?.role ?? "homeowner";
+export default function AdminNotificationsPage() {
+  const { firebaseUser } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -42,18 +41,15 @@ export default function NotificationsPage() {
     }
   };
 
-
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case "project_unlocked":
-        return <HiBell className="text-blue-500" />;
-      case "bid_received":
-      case "new_bid":
-        return <HiCheckCircle className="text-green-500" />;
       case "bid_accepted":
         return <HiCheck className="text-green-600" />;
       case "bid_rejected":
         return <HiXCircle className="text-red-500" />;
+      case "new_bid":
+      case "bid_received":
+        return <HiCheckCircle className="text-green-500" />;
       case "new_message":
       case "message":
         return <HiChat className="text-orange-500" />;
@@ -67,37 +63,27 @@ export default function NotificationsPage() {
   const getNotificationLink = (notif: AppNotification) => {
     switch (notif.type) {
       case "project_unlocked":
-        return "/dashboard/homeowner/projects";
-      case "bid_received":
-      case "new_bid":
-      case "bid_accepted":
-      case "bid_rejected":
-        return "/dashboard/homeowner/bids";
-      case "new_message":
-      case "message":
-        return `/dashboard/${role}/messages`;
-      case "new_review":
-        return "/dashboard/homeowner/bids";
+        return "/dashboard/admin/users";
       default:
         return "#";
     }
   };
 
   return (
-    <ProtectedRoute allowedRoles={["homeowner", "contractor"]}>
-      <DashboardLayout role={role as "homeowner" | "contractor"}>
+    <ProtectedRoute allowedRoles={["admin"]}>
+      <DashboardLayout role="admin">
         <div className="space-y-6 max-w-3xl">
           {/* Page Header */}
           <div>
             <Link
-              href={`/dashboard/${role}`}
+              href="/dashboard/admin"
               className="inline-flex items-center gap-2 text-gray-600 hover:text-orange-600 transition-colors text-sm mb-4"
             >
               <HiArrowLeft size={16} /> Back to Dashboard
             </Link>
             <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
             <p className="text-gray-500 mt-1">
-              Stay updated on your projects, bids, and messages.
+              Stay updated on platform activity and alerts.
             </p>
           </div>
 

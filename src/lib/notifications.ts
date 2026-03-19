@@ -21,7 +21,8 @@ export type NotificationType =
   | "bid_accepted"
   | "bid_rejected"
   | "new_message"
-  | "message";
+  | "message"
+  | "new_review";
 
 export interface AppNotification {
   id: string;

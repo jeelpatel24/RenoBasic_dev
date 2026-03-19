@@ -23,6 +23,8 @@ function getNotificationLink(notif: AppNotification, role: string): string {
     case "new_message":
     case "message":
       return `/dashboard/${role}/messages`;
+    case "new_review":
+      return "/dashboard/contractor/analytics";
     default:
       return "#";
   }

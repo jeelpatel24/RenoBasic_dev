@@ -2,6 +2,7 @@ import { db } from "@/lib/firebase";
 import {
   doc,
   getDoc,
+  updateDoc,
   collection,
   query,
   where,
@@ -85,6 +86,21 @@ export async function unlockProject(
       relatedProjectId: projectId,
       timestamp: now,
     });
+  });
+}
+
+/**
+ * Update the status of a project (homeowner only).
+ * Valid statuses: "open" | "in_progress" | "completed" | "closed"
+ */
+export async function updateProjectStatus(
+  projectId: string,
+  status: "open" | "in_progress" | "completed" | "closed"
+): Promise<void> {
+  const projectRef = doc(db, "projects", projectId);
+  await updateDoc(projectRef, {
+    status,
+    updatedAt: new Date().toISOString(),
   });
 }
 

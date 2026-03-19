@@ -18,8 +18,7 @@ import {
 } from "react-icons/hi";
 
 export default function NotificationsPage() {
-  const { firebaseUser, userProfile } = useAuth();
-  const role = userProfile?.role ?? "homeowner";
+  const { firebaseUser } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -75,7 +74,7 @@ export default function NotificationsPage() {
         return "/dashboard/homeowner/bids";
       case "new_message":
       case "message":
-        return `/dashboard/${role}/messages`;
+        return "/dashboard/homeowner/messages";
       case "new_review":
         return "/dashboard/homeowner/bids";
       default:
@@ -84,13 +83,13 @@ export default function NotificationsPage() {
   };
 
   return (
-    <ProtectedRoute allowedRoles={["homeowner", "contractor"]}>
-      <DashboardLayout role={role as "homeowner" | "contractor"}>
+    <ProtectedRoute allowedRoles={["homeowner"]}>
+      <DashboardLayout role="homeowner">
         <div className="space-y-6 max-w-3xl">
           {/* Page Header */}
           <div>
             <Link
-              href={`/dashboard/${role}`}
+              href="/dashboard/homeowner"
               className="inline-flex items-center gap-2 text-gray-600 hover:text-orange-600 transition-colors text-sm mb-4"
             >
               <HiArrowLeft size={16} /> Back to Dashboard

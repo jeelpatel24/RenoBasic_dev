@@ -2,6 +2,7 @@ import {
   collection,
   addDoc,
   updateDoc,
+  deleteDoc,
   doc,
   query,
   where,
@@ -22,7 +23,9 @@ export type NotificationType =
   | "bid_rejected"
   | "new_message"
   | "message"
-  | "new_review";
+  | "new_review"
+  | "verification_approved"
+  | "verification_rejected";
 
 export interface AppNotification {
   id: string;
@@ -104,6 +107,32 @@ export async function markAllNotificationsRead(uid: string): Promise<void> {
   });
 
   await batch.commit();
+}
+
+/**
+ * Delete a single notification by document ID.
+ */
+export async function deleteNotification(notificationId: string): Promise<void> {
+  await deleteDoc(doc(db, "notifications", notificationId));
+}
+
+/**
+ * Delete all notifications for a user.
+ */
+export async function deleteAllNotifications(uid: string): Promise<void> {
+  const batchSize = 400;
+  while (true) {
+    const q = query(
+      collection(db, "notifications"),
+      where("recipientUid", "==", uid),
+      limit(batchSize)
+    );
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) break;
+    const batch = writeBatch(db);
+    snapshot.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }
 }
 
 /**

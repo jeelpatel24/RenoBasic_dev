@@ -13,6 +13,7 @@ import {
   markMessagesAsRead,
   deleteConversation,
 } from "@/lib/messages";
+import { createNotification } from "@/lib/notifications";
 import toast from "react-hot-toast";
 import { formatTime } from "@/lib/utils";
 import { HiChat, HiPaperAirplane, HiArrowLeft, HiTrash, HiExclamation } from "react-icons/hi";
@@ -59,10 +60,23 @@ export default function HomeownerMessagesPage() {
 
   const handleSend = async () => {
     if (!newMessage.trim() || !activeConv || !userProfile) return;
+    const text = newMessage.trim();
     setSending(true);
     try {
-      await sendMessage(activeConv, userProfile.uid, userProfile.fullName, newMessage.trim());
+      await sendMessage(activeConv, userProfile.uid, userProfile.fullName, text);
       setNewMessage("");
+      // Notify the contractor
+      if (activeConversation?.contractorUid) {
+        createNotification({
+          recipientUid: activeConversation.contractorUid,
+          type: "new_message",
+          title: `New message from ${userProfile.fullName}`,
+          message: text.length > 80 ? text.slice(0, 80) + "…" : text,
+          read: false,
+          createdAt: new Date().toISOString(),
+          relatedId: activeConv,
+        }).catch(console.error);
+      }
     } catch {
       toast.error("Failed to send message.");
     } finally {
@@ -198,7 +212,7 @@ export default function HomeownerMessagesPage() {
                       placeholder="Type a message..."
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+                      onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && !sending && handleSend()}
                       className="flex-1 px-4 py-2 border border-gray-300 rounded-full text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
                     />
                     <Button

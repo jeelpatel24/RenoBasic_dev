@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { useAuth } from "@/contexts/AuthContext";
-import { subscribeToNotifications, markNotificationRead, AppNotification } from "@/lib/notifications";
+import { subscribeToNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, deleteAllNotifications, AppNotification } from "@/lib/notifications";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 import {
@@ -15,6 +15,9 @@ import {
   HiXCircle,
   HiChat,
   HiStar,
+  HiTrash,
+  HiShieldCheck,
+  HiShieldExclamation,
 } from "react-icons/hi";
 
 export default function ContractorNotificationsPage() {
@@ -41,6 +44,35 @@ export default function ContractorNotificationsPage() {
     }
   };
 
+  const handleMarkAllRead = async () => {
+    if (!firebaseUser) return;
+    try {
+      await markAllNotificationsRead(firebaseUser.uid);
+    } catch (error) {
+      console.error("Error marking all as read:", error);
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, notificationId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await deleteNotification(notificationId);
+    } catch (error) {
+      console.error("Error deleting notification:", error);
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (!firebaseUser) return;
+    if (!confirm("Delete all notifications? This cannot be undone.")) return;
+    try {
+      await deleteAllNotifications(firebaseUser.uid);
+    } catch (error) {
+      console.error("Error clearing notifications:", error);
+    }
+  };
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "bid_accepted":
@@ -55,6 +87,10 @@ export default function ContractorNotificationsPage() {
         return <HiChat className="text-orange-500" />;
       case "new_review":
         return <HiStar className="text-amber-500" />;
+      case "verification_approved":
+        return <HiShieldCheck className="text-green-500" />;
+      case "verification_rejected":
+        return <HiShieldExclamation className="text-red-500" />;
       default:
         return <HiBell className="text-gray-500" />;
     }
@@ -72,6 +108,9 @@ export default function ContractorNotificationsPage() {
         return "/dashboard/contractor/marketplace";
       case "new_review":
         return "/dashboard/contractor/analytics";
+      case "verification_approved":
+      case "verification_rejected":
+        return "/dashboard/contractor/settings";
       default:
         return "#";
     }
@@ -89,10 +128,30 @@ export default function ContractorNotificationsPage() {
             >
               <HiArrowLeft size={16} /> Back to Dashboard
             </Link>
-            <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
-            <p className="text-gray-500 mt-1">
-              Stay updated on your bids, messages, and projects.
-            </p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
+                <p className="text-gray-500 mt-1">
+                  Stay updated on your bids, messages, and projects.
+                </p>
+              </div>
+              {notifications.length > 0 && (
+                <div className="flex gap-2 mt-1">
+                  <button
+                    onClick={handleMarkAllRead}
+                    className="text-sm px-3 py-1.5 rounded-lg border border-orange-300 text-orange-600 hover:bg-orange-50 transition"
+                  >
+                    Mark all read
+                  </button>
+                  <button
+                    onClick={handleClearAll}
+                    className="text-sm px-3 py-1.5 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 transition flex items-center gap-1"
+                  >
+                    <HiTrash size={14} /> Clear all
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Notifications List */}
@@ -132,18 +191,27 @@ export default function ContractorNotificationsPage() {
                         <p className="font-semibold text-gray-900">
                           {notif.title}
                         </p>
-                        {!notif.read && (
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {!notif.read && (
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleMarkRead(notif.id);
+                              }}
+                              className="text-xs px-2.5 py-1 rounded-full bg-orange-600 text-white hover:bg-orange-700 transition whitespace-nowrap"
+                            >
+                              Mark read
+                            </button>
+                          )}
                           <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleMarkRead(notif.id);
-                            }}
-                            className="text-xs px-2.5 py-1 rounded-full bg-orange-600 text-white hover:bg-orange-700 transition whitespace-nowrap"
+                            onClick={(e) => handleDelete(e, notif.id)}
+                            className="p-1 text-gray-400 hover:text-red-500 transition"
+                            title="Delete notification"
                           >
-                            Mark read
+                            <HiTrash size={15} />
                           </button>
-                        )}
+                        </div>
                       </div>
 
                       <p className="text-sm text-gray-600 line-clamp-2">

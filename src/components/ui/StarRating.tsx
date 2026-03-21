@@ -42,7 +42,7 @@ export function StarRating({
       ))}
       {!readonly && value > 0 && (
         <span className="ml-2 text-sm text-orange-600 font-medium">
-          {LABELS[value]}
+          {LABELS[Math.min(Math.max(Math.round(value), 1), 5)]}
         </span>
       )}
     </div>

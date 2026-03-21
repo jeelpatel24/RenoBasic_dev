@@ -20,9 +20,11 @@ export function validatePassword(password: string): ValidationResult {
 }
 
 export function validatePhone(phone: string): ValidationResult {
-  const phoneRegex = /^[\d\s\-\+\(\)]{10,15}$/;
   if (!phone.trim()) return { valid: false, error: "Phone number is required." };
-  if (!phoneRegex.test(phone)) return { valid: false, error: "Please enter a valid phone number." };
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length !== 10 && !(digits.length === 11 && digits[0] === "1")) {
+    return { valid: false, error: "Please enter a valid 10-digit phone number." };
+  }
   return { valid: true };
 }
 

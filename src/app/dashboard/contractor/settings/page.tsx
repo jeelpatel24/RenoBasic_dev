@@ -21,6 +21,7 @@ export default function ContractorSettingsPage() {
     companyName: "",
     contactName: "",
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
   // Sync form when contractor profile loads
@@ -36,14 +37,26 @@ export default function ContractorSettingsPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    setErrors((prev) => ({ ...prev, [e.target.name]: "" }));
   };
 
   const handleSave = async () => {
     if (!contractor) return;
 
-    const phoneDigits = form.phone.replace(/\D/g, "");
-    if (form.phone.trim() && phoneDigits.length !== 10 && !(phoneDigits.length === 11 && phoneDigits[0] === "1")) {
-      toast.error("Enter a valid 10-digit phone number.");
+    const newErrors: Record<string, string> = {};
+    if (!form.fullName.trim()) newErrors.fullName = "Full name is required.";
+    if (!form.companyName.trim()) newErrors.companyName = "Company name is required.";
+    if (!form.contactName.trim()) newErrors.contactName = "Contact name is required.";
+    if (!form.phone.trim()) {
+      newErrors.phone = "Phone number is required.";
+    } else {
+      const phoneDigits = form.phone.replace(/\D/g, "");
+      if (phoneDigits.length !== 10 && !(phoneDigits.length === 11 && phoneDigits[0] === "1")) {
+        newErrors.phone = "Enter a valid 10-digit phone number.";
+      }
+    }
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
@@ -123,10 +136,10 @@ export default function ContractorSettingsPage() {
                 <h2 className="text-lg font-bold text-gray-900">Profile Information</h2>
               </div>
               <div className="space-y-4">
-                <Input label="Full Name" name="fullName" value={form.fullName} onChange={handleChange} />
-                <Input label="Phone" name="phone" value={form.phone} onChange={handleChange} />
-                <Input label="Company Name" name="companyName" value={form.companyName} onChange={handleChange} />
-                <Input label="Contact Name" name="contactName" value={form.contactName} onChange={handleChange} />
+                <Input label="Full Name" name="fullName" value={form.fullName} onChange={handleChange} error={errors.fullName} />
+                <Input label="Phone" name="phone" type="tel" placeholder="(416) 555-0123" value={form.phone} onChange={handleChange} error={errors.phone} />
+                <Input label="Company Name" name="companyName" value={form.companyName} onChange={handleChange} error={errors.companyName} />
+                <Input label="Contact Name" name="contactName" value={form.contactName} onChange={handleChange} error={errors.contactName} />
 
                 <div className="pt-2">
                   <p className="text-sm text-gray-500 mb-1">Email</p>

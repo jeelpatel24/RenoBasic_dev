@@ -61,15 +61,26 @@ function CreditsPageContent() {
   // Detect redirect back from Stripe with ?status=success
   useEffect(() => {
     if (searchParams.get("status") === "success") {
-      // Capture balance at the moment we landed back from Stripe
-      balanceAtRedirectRef.current = creditBalance;
-      setPaymentPending(true);
-      setWaitSeconds(0);
+      // Read the balance that was stored in sessionStorage BEFORE the user
+      // left for Stripe. This avoids the race condition where the webhook
+      // fires so quickly that Firestore is already updated by the time this
+      // page loads, making creditBalance already reflect the new value.
+      const stored = sessionStorage.getItem("creditBalanceBeforePayment");
+      balanceAtRedirectRef.current = stored !== null ? parseInt(stored, 10) : creditBalance;
+      sessionStorage.removeItem("creditBalanceBeforePayment");
 
-      // Start elapsed-time counter so user can see we're actively waiting
-      timerRef.current = setInterval(() => {
-        setWaitSeconds((s) => s + 1);
-      }, 1000);
+      // If balance is already higher than before-payment value, webhook was instant
+      if (creditBalance > (balanceAtRedirectRef.current ?? creditBalance)) {
+        setPaymentConfirmed(true);
+        toast.success(`Credits added! New balance: ${creditBalance}`, { duration: 5000 });
+        setTimeout(() => setPaymentConfirmed(false), 6000);
+      } else {
+        setPaymentPending(true);
+        setWaitSeconds(0);
+        timerRef.current = setInterval(() => {
+          setWaitSeconds((s) => s + 1);
+        }, 1000);
+      }
 
       // Clean URL so the banner doesn't reappear on manual refresh
       router.replace("/dashboard/contractor/credits");
@@ -166,6 +177,9 @@ function CreditsPageContent() {
       toast.error("Payment link not configured. Contact support.");
       return;
     }
+
+    // Store current balance before leaving — used to detect credit increase on return
+    sessionStorage.setItem("creditBalanceBeforePayment", String(creditBalance));
 
     const params = new URLSearchParams({
       client_reference_id: contractor.uid,

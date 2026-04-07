@@ -29,14 +29,14 @@ export const dynamic = "force-dynamic";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
-// Maps each Stripe Price ID to the number of credits to award.
-// Loaded once at module init — safe for serverless cold starts.
+// Maps each Stripe Price ID → credits to award.
+// Built inside the handler so env vars are guaranteed available at request time.
 function buildPriceMap(): Record<string, number> {
   const map: Record<string, number> = {};
   const entries: [string | undefined, number][] = [
-    [process.env.STRIPE_PRICE_STARTER, 10],
-    [process.env.STRIPE_PRICE_STANDARD, 15],
-    [process.env.STRIPE_PRICE_PRO, 30],
+    [process.env.STRIPE_PRICE_STARTER,    10],
+    [process.env.STRIPE_PRICE_STANDARD,   15],
+    [process.env.STRIPE_PRICE_PRO,        30],
     [process.env.STRIPE_PRICE_ENTERPRISE, 60],
   ];
   for (const [priceId, credits] of entries) {
@@ -44,8 +44,6 @@ function buildPriceMap(): Record<string, number> {
   }
   return map;
 }
-
-const PRICE_CREDITS = buildPriceMap();
 
 export async function POST(request: NextRequest) {
   // ── 1. Read raw body (required for signature verification) ──────────────
@@ -76,6 +74,8 @@ export async function POST(request: NextRequest) {
   }
 
   // ── 3. Handle checkout.session.completed ────────────────────────────────
+  const PRICE_CREDITS = buildPriceMap();
+
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
 

@@ -2,22 +2,22 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { getUserProfile } from "@/lib/auth";
+import { onSnapshot, doc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 import { AppUser } from "@/types";
 
 interface AuthContextType {
   firebaseUser: User | null;
   userProfile: AppUser | null;
   loading: boolean;
-  refreshProfile: () => Promise<void>;
+  refreshProfile: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
   firebaseUser: null,
   userProfile: null,
   loading: true,
-  refreshProfile: async () => {},
+  refreshProfile: () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -25,35 +25,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userProfile, setUserProfile] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refreshProfile = async () => {
-    if (firebaseUser) {
-      try {
-        const profile = await getUserProfile(firebaseUser.uid);
-        setUserProfile(profile);
-      } catch {
-        // keep existing profile on error
-      }
-    }
-  };
-
+  // Listen for auth state changes
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user);
-      if (user) {
-        try {
-          const profile = await getUserProfile(user.uid);
-          setUserProfile(profile);
-        } catch {
-          setUserProfile(null);
-        }
-      } else {
+      if (!user) {
         setUserProfile(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
+
+  // Real-time listener on the user document — updates credit balance everywhere
+  // automatically whenever Firestore changes (e.g. after Stripe webhook fires).
+  useEffect(() => {
+    if (!firebaseUser) return;
+
+    const userDocRef = doc(db, "users", firebaseUser.uid);
+    const unsubscribe = onSnapshot(
+      userDocRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          setUserProfile(snapshot.data() as AppUser);
+        } else {
+          setUserProfile(null);
+        }
+        setLoading(false);
+      },
+      () => {
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [firebaseUser]);
+
+  // No-op — kept for API compatibility, real-time listener handles updates.
+  const refreshProfile = () => {};
 
   return (
     <AuthContext.Provider value={{ firebaseUser, userProfile, loading, refreshProfile }}>
@@ -69,4 +78,3 @@ export function useAuth() {
   }
   return context;
 }
-

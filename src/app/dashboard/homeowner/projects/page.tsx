@@ -42,6 +42,8 @@ import {
   HiChat,
   HiPhone,
   HiCheckCircle,
+  HiExclamation,
+  HiCollection,
 } from "react-icons/hi";
 
 /* ------------------------------------------------------------------ */
@@ -104,8 +106,11 @@ export default function HomeownerProjectsPage() {
   const [loading, setLoading] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
+  const [projectsRetryCount, setProjectsRetryCount] = useState(0);
   const [successMessage, setSuccessMessage] = useState("");
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
+  const [bidCountsByProject, setBidCountsByProject] = useState<Record<string, number>>({});
 
   const handleStatusUpdate = async (
     e: React.MouseEvent | React.ChangeEvent,
@@ -128,6 +133,8 @@ export default function HomeownerProjectsPage() {
   /* ── fetch user's existing projects ─────────────────────────────── */
   useEffect(() => {
     if (!userProfile) return;
+    setProjectsLoading(true);
+    setProjectsError(null);
 
     const q = query(
       collection(db, "projects"),
@@ -138,12 +145,39 @@ export default function HomeownerProjectsPage() {
       q,
       (snapshot) => {
         setProjects(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Project)));
+        setProjectsError(null);
         setProjectsLoading(false);
       },
-      (error) => { console.error("Error loading projects:", error); setProjectsLoading(false); }
+      (err) => {
+        console.error("Error loading projects:", err);
+        setProjectsError("Failed to load your projects. Please try again.");
+        setProjectsLoading(false);
+      }
     );
 
     return () => unsubscribe();
+  }, [userProfile, projectsRetryCount]);
+
+  /* ── bid counts per project (single query, grouped by projectId) ── */
+  useEffect(() => {
+    if (!userProfile) return;
+    const q = query(
+      collection(db, "bids"),
+      where("homeownerUid", "==", userProfile.uid)
+    );
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const counts: Record<string, number> = {};
+        snapshot.docs.forEach((d) => {
+          const pid = d.data().projectId as string | undefined;
+          if (pid) counts[pid] = (counts[pid] ?? 0) + 1;
+        });
+        setBidCountsByProject(counts);
+      },
+      (err) => { console.error("Error loading bid counts:", err); }
+    );
+    return () => unsub();
   }, [userProfile]);
 
   /* ── generic change handlers ────────────────────────────────────── */
@@ -947,6 +981,17 @@ export default function HomeownerProjectsPage() {
               <div className="flex items-center justify-center py-12">
                 <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
               </div>
+            ) : projectsError ? (
+              <div className="text-center py-12">
+                <HiExclamation size={48} className="mx-auto mb-4 text-red-300" />
+                <p className="font-medium text-gray-700">{projectsError}</p>
+                <button
+                  onClick={() => setProjectsRetryCount((c) => c + 1)}
+                  className="mt-4 px-5 py-2 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
             ) : projects.length === 0 ? (
               <div className="text-center py-12 text-gray-400">
                 <HiClipboardList size={48} className="mx-auto mb-4 opacity-50" />
@@ -1016,6 +1061,14 @@ export default function HomeownerProjectsPage() {
                                   project.preferredStartDate as PreferredStartDate
                                 ] || project.preferredStartDate
                               : "Flexible"}
+                          </span>
+                          <span className={`flex items-center gap-1 font-medium ${
+                            (bidCountsByProject[project.id] ?? 0) > 0
+                              ? "text-purple-600"
+                              : "text-gray-400"
+                          }`}>
+                            <HiCollection size={14} />
+                            {bidCountsByProject[project.id] ?? 0} Bid{(bidCountsByProject[project.id] ?? 0) !== 1 ? "s" : ""}
                           </span>
                         </div>
                       </div>

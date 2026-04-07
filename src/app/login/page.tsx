@@ -9,7 +9,6 @@ import Footer from "@/components/layout/Footer";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { loginUser, getDashboardRoute } from "@/lib/auth";
-import { auth } from "@/lib/firebase";
 import { validateEmail } from "@/lib/validation";
 
 export default function LoginPage() {
@@ -39,16 +38,20 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const userProfile = await loginUser(form.email, form.password);
-      // Redirect unverified non-admin users to email verification
-      if (userProfile.role !== "admin" && !auth.currentUser?.emailVerified) {
-        router.push("/verify-email");
-        return;
-      }
       toast.success("Welcome back!");
       router.push(getDashboardRoute(userProfile.role));
     } catch (error: unknown) {
       const firebaseError = error as { code?: string; message?: string };
-      if (firebaseError.code === "auth/user-not-found" || firebaseError.code === "auth/wrong-password" || firebaseError.code === "auth/invalid-credential") {
+      // loginUser throws this when the user's email is not yet verified.
+      // The Firebase session remains active so /verify-email can resend the link.
+      if (firebaseError.code === "email-not-verified") {
+        router.push("/verify-email");
+        return;
+      } else if (
+        firebaseError.code === "auth/user-not-found" ||
+        firebaseError.code === "auth/wrong-password" ||
+        firebaseError.code === "auth/invalid-credential"
+      ) {
         toast.error("Invalid email or password.");
       } else if (firebaseError.code === "auth/too-many-requests") {
         toast.error("Too many attempts. Please try again later.");

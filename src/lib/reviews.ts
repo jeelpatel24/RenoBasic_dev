@@ -14,6 +14,21 @@ import {
 } from "firebase/firestore";
 import { Review } from "@/types";
 
+/** Returns { count, average } rating summary for a contractor. */
+export async function getContractorRatingSummary(
+  contractorUid: string
+): Promise<{ count: number; average: number }> {
+  const q = query(
+    collection(db, "reviews"),
+    where("contractorUid", "==", contractorUid)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return { count: 0, average: 0 };
+  const ratings = snap.docs.map((d) => (d.data().rating as number | undefined) ?? 0);
+  const avg = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+  return { count: ratings.length, average: avg };
+}
+
 /** Submit a new review. Returns the new document ID. */
 export async function submitReview(data: Omit<Review, "id">): Promise<string> {
   const docRef = await addDoc(collection(db, "reviews"), data);
@@ -32,7 +47,11 @@ export async function getHomeownerReviewedBidIds(
     where("homeownerUid", "==", homeownerUid)
   );
   const snap = await getDocs(q);
-  return new Set(snap.docs.map((d) => d.data().bidId as string));
+  return new Set(
+    snap.docs
+      .map((d) => d.data().bidId as string | undefined)
+      .filter((id): id is string => !!id)
+  );
 }
 
 /** One-time fetch of a contractor's reviews (newest first). Used by admin. */

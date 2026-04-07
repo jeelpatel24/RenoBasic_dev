@@ -78,7 +78,16 @@ export async function loginUser(email: string, password: string): Promise<AppUse
     throw new Error("User profile not found in database.");
   }
 
-  return docSnapshot.data() as AppUser;
+  const userProfile = docSnapshot.data() as AppUser;
+
+  // Enforce email verification for all non-admin users.
+  // Admin accounts are created directly in Firebase and bypass this requirement.
+  // The Firebase session remains active so the /verify-email page can resend the link.
+  if (userProfile.role !== "admin" && !user.emailVerified) {
+    throw { code: "email-not-verified", message: "Please verify your email address before signing in." };
+  }
+
+  return userProfile;
 }
 
 export async function logoutUser(): Promise<void> {

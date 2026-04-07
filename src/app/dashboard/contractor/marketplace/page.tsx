@@ -48,6 +48,8 @@ export default function ContractorMarketplacePage() {
   const [cityFilter, setCityFilter] = useState("");
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "budget_high" | "budget_low">("newest");
   const [confirmUnlock, setConfirmUnlock] = useState<Project | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Fetch unlocked project IDs
   useEffect(() => {
@@ -57,6 +59,9 @@ export default function ContractorMarketplacePage() {
 
   // Fetch all projects
   useEffect(() => {
+    if (!contractor) return;
+    setLoading(true);
+    setError(null);
     const projectsRef = query(
       collection(db, "projects"),
       where("status", "==", "open"),
@@ -70,17 +75,18 @@ export default function ContractorMarketplacePage() {
           ...doc.data(),
         } as Project));
         setProjects(allProjects);
+        setError(null);
         setLoading(false);
       },
-      (error) => {
-        console.error("Error fetching projects:", error);
-        toast.error("Failed to load projects. Please refresh.");
+      (err) => {
+        console.error("Error fetching projects:", err);
+        setError("Failed to load projects. Please try again.");
         setLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [retryCount, contractor?.uid]);
 
   const applyFilters = () => {
     let filtered = [...projects];
@@ -396,6 +402,19 @@ export default function ContractorMarketplacePage() {
           {loading ? (
             <div className="flex items-center justify-center py-16">
               <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : error ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="text-center py-12">
+                <HiExclamation size={48} className="mx-auto mb-4 text-red-300" />
+                <p className="font-medium text-gray-700">{error}</p>
+                <button
+                  onClick={() => setRetryCount((c) => c + 1)}
+                  className="mt-4 px-5 py-2 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
             </div>
           ) : filteredProjects.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 p-6">

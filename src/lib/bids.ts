@@ -5,12 +5,33 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  getDoc,
   query,
   where,
   getDocs,
   orderBy,
+  writeBatch,
+  limit,
 } from "firebase/firestore";
 import { Bid, BidItem, InvoiceLineItem } from "@/types";
+
+/**
+ * Returns an existing bid from this contractor on this project, or null.
+ */
+export async function getExistingBid(
+  contractorUid: string,
+  projectId: string
+): Promise<Bid | null> {
+  const q = query(
+    collection(db, "bids"),
+    where("contractorUid", "==", contractorUid),
+    where("projectId", "==", projectId),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  return { id: snap.docs[0].id, ...snap.docs[0].data() } as Bid;
+}
 
 /**
  * Submit a new bid for a project (invoice format).
@@ -48,21 +69,84 @@ export async function submitBid(bidData: {
 }
 
 /**
- * Update the status of a bid.
+ * Update the status of a single bid (use for simple rejection).
+ * For accepting a bid, use acceptBid() instead.
  */
 export async function updateBidStatus(
   bidId: string,
   status: "submitted" | "accepted" | "rejected"
 ): Promise<void> {
   const bidRef = doc(db, "bids", bidId);
-  await updateDoc(bidRef, { status });
+  await updateDoc(bidRef, { status, updatedAt: new Date().toISOString() });
 }
 
 /**
- * Withdraw (delete) a submitted bid. Only allowed when status is "submitted".
+ * Accept a bid in a single atomic batch:
+ *  1. Marks this bid as accepted.
+ *  2. Rejects all other submitted bids on the same project.
+ *  3. Sets the project status to in_progress.
+ *
+ * Returns an array of auto-rejected contractor info so the caller can
+ * send rejection notifications without extra Firestore reads.
+ */
+export async function acceptBid(
+  bidId: string,
+  projectId: string
+): Promise<Array<{ contractorUid: string; contractorName: string; projectCategory: string }>> {
+  const now = new Date().toISOString();
+
+  // Fetch sibling submitted bids before opening the batch.
+  const siblingsSnap = await getDocs(
+    query(
+      collection(db, "bids"),
+      where("projectId", "==", projectId),
+      where("status", "==", "submitted")
+    )
+  );
+
+  const batch = writeBatch(db);
+
+  // Accept the chosen bid.
+  batch.update(doc(db, "bids", bidId), { status: "accepted", updatedAt: now });
+
+  // Reject every other submitted bid on this project.
+  const rejected: Array<{ contractorUid: string; contractorName: string; projectCategory: string }> = [];
+  siblingsSnap.forEach((d) => {
+    if (d.id === bidId) return;
+    batch.update(d.ref, { status: "rejected", updatedAt: now });
+    const data = d.data();
+    rejected.push({
+      contractorUid: data.contractorUid,
+      contractorName: data.contractorName,
+      projectCategory: data.projectCategory,
+    });
+  });
+
+  // Move the project to in_progress.
+  batch.update(doc(db, "projects", projectId), {
+    status: "in_progress",
+    updatedAt: now,
+  });
+
+  await batch.commit();
+  return rejected;
+}
+
+/**
+ * Withdraw (delete) a bid. Throws if the bid is not in "submitted" status
+ * so a race condition between accept and withdraw cannot corrupt project state.
  */
 export async function withdrawBid(bidId: string): Promise<void> {
-  await deleteDoc(doc(db, "bids", bidId));
+  const bidRef = doc(db, "bids", bidId);
+  const snap = await getDoc(bidRef);
+  if (!snap.exists()) throw new Error("Bid not found.");
+  const status = snap.data()?.status as string | undefined;
+  if (status !== "submitted") {
+    throw new Error(
+      `This bid has already been ${status} and cannot be withdrawn.`
+    );
+  }
+  await deleteDoc(bidRef);
 }
 
 /**

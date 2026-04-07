@@ -16,17 +16,40 @@ export default function VerifyEmailPage() {
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
 
+  // Guard: redirect away from this page if auth state is resolved.
   useEffect(() => {
     if (loading) return;
     if (!firebaseUser) {
       router.replace("/login");
       return;
     }
-    // Already verified — go to dashboard
+    // Already verified on mount (e.g. page refresh) — go straight to dashboard.
     if (firebaseUser.emailVerified) {
       const role = userProfile?.role ?? "homeowner";
       router.replace(getDashboardRoute(role));
     }
+  }, [firebaseUser, userProfile, loading, router]);
+
+  // Auto-poll every 5 s so the page advances the moment the user clicks the
+  // link in their inbox — without requiring them to press the manual button.
+  useEffect(() => {
+    if (loading || !firebaseUser || firebaseUser.emailVerified) return;
+
+    const interval = setInterval(async () => {
+      try {
+        await firebaseUser.reload();
+        const refreshed = auth.currentUser;
+        if (refreshed?.emailVerified) {
+          clearInterval(interval);
+          const role = userProfile?.role ?? "homeowner";
+          router.replace(getDashboardRoute(role));
+        }
+      } catch {
+        // Network error — polling will retry on the next tick.
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, [firebaseUser, userProfile, loading, router]);
 
   const handleResend = async () => {

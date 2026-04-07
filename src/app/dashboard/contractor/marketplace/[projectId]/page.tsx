@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, limit, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -12,6 +12,7 @@ import Link from "next/link";
 import {
   Project,
   ContractorUser,
+  Bid,
   CATEGORY_LABELS,
   BUDGET_LABELS,
   PROPERTY_TYPE_LABELS,
@@ -22,7 +23,7 @@ import {
 } from "@/types";
 import { getProjectPrivateDetails } from "@/lib/projects";
 import { getOrCreateConversation } from "@/lib/messages";
-import { submitBid } from "@/lib/bids";
+import { submitBid, getExistingBid } from "@/lib/bids";
 import { createNotification } from "@/lib/notifications";
 import toast from "react-hot-toast";
 // import { formatDate } from "@/lib/utils";
@@ -42,6 +43,9 @@ import {
   HiClipboardCheck,
   HiShieldCheck,
   HiTruck,
+  HiCheckCircle,
+  HiXCircle,
+  HiClock,
 } from "react-icons/hi";
 
 export default function ContractorProjectDetailPage() {
@@ -56,6 +60,7 @@ export default function ContractorProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showBidForm, setShowBidForm] = useState(false);
   const [bidLoading, setBidLoading] = useState(false);
+  const [existingBid, setExistingBid] = useState<Bid | null | undefined>(undefined);
 
   // ── Invoice state ──────────────────────────────────────────────────────────
   const [bidCompanyName, setBidCompanyName] = useState("");
@@ -85,6 +90,9 @@ export default function ContractorProjectDetailPage() {
           if (unlockSnap.exists()) {
             const details = await getProjectPrivateDetails(projectId);
             setPrivateDetails(details);
+            // existingBid is kept live by the onSnapshot subscription below.
+          } else {
+            setExistingBid(null);
           }
         }
       } catch (error) {
@@ -106,6 +114,30 @@ export default function ContractorProjectDetailPage() {
       setBidContactPhone(contractor.phone || "");
     }
   }, [contractor]);
+
+  // Real-time bid status — keeps the status banner in sync when the
+  // homeowner accepts or rejects while this page is open.
+  // Only runs after privateDetails is set (i.e., project is unlocked).
+  useEffect(() => {
+    if (!contractor || !projectId || !privateDetails) return;
+    const q = query(
+      collection(db, "bids"),
+      where("contractorUid", "==", contractor.uid),
+      where("projectId", "==", projectId),
+      limit(1)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      if (snap.empty) {
+        setExistingBid(null);
+      } else {
+        const d = snap.docs[0];
+        setExistingBid({ id: d.id, ...d.data() } as Bid);
+      }
+    }, (err) => {
+      console.error("Bid status subscription error:", err);
+    });
+    return () => unsub();
+  }, [contractor, projectId, privateDetails]);
 
   const handleStartConversation = async () => {
     if (!contractor || !project || !privateDetails) return;
@@ -151,6 +183,15 @@ export default function ContractorProjectDetailPage() {
 
     setBidLoading(true);
     try {
+      // Server-side guard: prevent duplicate bids even if the UI check was bypassed
+      const existing = await getExistingBid(contractor.uid, project.id);
+      if (existing) {
+        toast.error("You've already submitted a bid for this project.");
+        setExistingBid(existing);
+        setShowBidForm(false);
+        return;
+      }
+
       const invoiceLineItems = lineItems.map((item) => ({
         description: item.description,
         qty: item.qty,
@@ -201,6 +242,7 @@ export default function ContractorProjectDetailPage() {
       setTaxRate(0);
       setBidTimeline("");
       setBidNotes("");
+      // existingBid is updated automatically by the onSnapshot subscription.
     } catch {
       toast.error("Failed to submit bid.");
     } finally {
@@ -443,18 +485,41 @@ export default function ContractorProjectDetailPage() {
                   <HiChat size={18} className="mr-2" />
                   Message Homeowner
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowBidForm(!showBidForm)}
-                  className="flex-1"
-                >
-                  <HiDocumentText size={18} className="mr-2" />
-                  {showBidForm ? "Cancel Bid" : "Submit a Bid"}
-                </Button>
+                {existingBid ? (
+                  <div className={`flex-1 flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium ${
+                    existingBid.status === "accepted"
+                      ? "bg-green-50 border-green-200 text-green-700"
+                      : existingBid.status === "rejected"
+                      ? "bg-red-50 border-red-200 text-red-600"
+                      : "bg-amber-50 border-amber-200 text-amber-700"
+                  }`}>
+                    {existingBid.status === "accepted" ? (
+                      <HiCheckCircle size={18} />
+                    ) : existingBid.status === "rejected" ? (
+                      <HiXCircle size={18} />
+                    ) : (
+                      <HiClock size={18} />
+                    )}
+                    {existingBid.status === "accepted"
+                      ? "Your bid was accepted"
+                      : existingBid.status === "rejected"
+                      ? "Your bid was not selected"
+                      : "Bid submitted — awaiting response"}
+                  </div>
+                ) : existingBid === null ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowBidForm(!showBidForm)}
+                    className="flex-1"
+                  >
+                    <HiDocumentText size={18} className="mr-2" />
+                    {showBidForm ? "Cancel Bid" : "Submit a Bid"}
+                  </Button>
+                ) : null}
               </div>
 
               {/* Invoice Bid Form */}
-              {showBidForm && (
+              {showBidForm && !existingBid && (
                 <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
                   <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                     <HiDocumentText size={20} className="text-orange-500" />

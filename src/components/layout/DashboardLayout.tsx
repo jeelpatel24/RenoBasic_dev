@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,6 +8,7 @@ import { logoutUser } from "@/lib/auth";
 import { HiMenu, HiX, HiHome, HiClipboardList, HiChat, HiCreditCard, HiChartBar, HiCog, HiLogout, HiUsers, HiShieldCheck, HiCollection } from "react-icons/hi";
 import { UserRole } from "@/types";
 import { NotificationBell } from "@/components/ui/NotificationBell";
+import { subscribeToUnreadMessageCount } from "@/lib/messages";
 
 interface NavItem {
   label: string;
@@ -48,11 +49,22 @@ function getNavItems(role: UserRole): NavItem[] {
 
 export default function DashboardLayout({ children, role }: { children: ReactNode; role: UserRole }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const { userProfile } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   const navItems = getNavItems(role);
+
+  useEffect(() => {
+    if (!userProfile?.uid || (role !== "homeowner" && role !== "contractor")) return;
+    const unsub = subscribeToUnreadMessageCount(
+      userProfile.uid,
+      role as "homeowner" | "contractor",
+      setUnreadMessages
+    );
+    return unsub;
+  }, [userProfile?.uid, role]);
 
   const handleLogout = async () => {
     await logoutUser();
@@ -78,6 +90,7 @@ export default function DashboardLayout({ children, role }: { children: ReactNod
         <nav className="flex-1 p-4 space-y-1">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
+            const showBadge = item.label === "Messages" && unreadMessages > 0;
             return (
               <Link
                 key={item.href}
@@ -88,7 +101,14 @@ export default function DashboardLayout({ children, role }: { children: ReactNod
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                 }`}
               >
-                {item.icon}
+                <span className="relative inline-flex">
+                  {item.icon}
+                  {showBadge && (
+                    <span className="absolute -top-1.5 -right-1.5 bg-orange-500 text-white text-[9px] font-bold rounded-full min-w-[14px] h-3.5 flex items-center justify-center px-0.5 leading-none">
+                      {unreadMessages > 99 ? "99+" : unreadMessages}
+                    </span>
+                  )}
+                </span>
                 {item.label}
               </Link>
             );
@@ -126,6 +146,7 @@ export default function DashboardLayout({ children, role }: { children: ReactNod
             <nav className="flex-1 p-4 space-y-1">
               {navItems.map((item) => {
                 const isActive = pathname === item.href;
+                const showBadge = item.label === "Messages" && unreadMessages > 0;
                 return (
                   <Link
                     key={item.href}
@@ -137,7 +158,14 @@ export default function DashboardLayout({ children, role }: { children: ReactNod
                         : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                     }`}
                   >
-                    {item.icon}
+                    <span className="relative inline-flex">
+                      {item.icon}
+                      {showBadge && (
+                        <span className="absolute -top-1.5 -right-1.5 bg-orange-500 text-white text-[9px] font-bold rounded-full min-w-[14px] h-3.5 flex items-center justify-center px-0.5 leading-none">
+                          {unreadMessages > 99 ? "99+" : unreadMessages}
+                        </span>
+                      )}
+                    </span>
                     {item.label}
                   </Link>
                 );

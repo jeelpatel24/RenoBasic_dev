@@ -31,6 +31,7 @@ function ContractorMessagesInner() {
   const { userProfile } = useAuth();
   const searchParams = useSearchParams();
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loadingConversations, setLoadingConversations] = useState(true);
   const [activeConv, setActiveConv] = useState<string | null>(
     searchParams.get("conversation")
   );
@@ -49,8 +50,14 @@ function ContractorMessagesInner() {
     const unsub = subscribeToConversations(
       userProfile.uid,
       "contractor",
-      setConversations,
-      (error) => { console.error("Error loading conversations:", error); }
+      (convs) => {
+        setConversations(convs);
+        setLoadingConversations(false);
+      },
+      (error) => {
+        console.error("Error loading conversations:", error);
+        setLoadingConversations(false);
+      }
     );
     return () => unsub();
   }, [userProfile]);
@@ -133,7 +140,17 @@ function ContractorMessagesInner() {
                 </p>
               </div>
               <div className="flex-1 overflow-y-auto">
-                {conversations.length === 0 ? (
+                {loadingConversations ? (
+                  <div className="space-y-0">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="p-4 border-b border-gray-50 animate-pulse">
+                        <div className="h-4 w-28 bg-gray-200 rounded mb-2" />
+                        <div className="h-3 w-20 bg-orange-100 rounded mb-1.5" />
+                        <div className="h-3 w-full bg-gray-100 rounded" />
+                      </div>
+                    ))}
+                  </div>
+                ) : conversations.length === 0 ? (
                   <div className="text-center py-12 text-gray-400">
                     <HiChat size={40} className="mx-auto mb-3 opacity-50" />
                     <p className="text-sm">No conversations yet</p>

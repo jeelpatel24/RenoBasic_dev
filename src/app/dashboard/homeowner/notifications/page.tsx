@@ -24,14 +24,24 @@ export default function NotificationsPage() {
   const { firebaseUser } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!firebaseUser) return;
 
-    const unsubscribe = subscribeToNotifications(firebaseUser.uid, (notifs) => {
-      setNotifications(notifs);
-      setLoading(false);
-    });
+    const unsubscribe = subscribeToNotifications(
+      firebaseUser.uid,
+      (notifs) => {
+        setNotifications(notifs);
+        setError(null);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Error fetching notifications:", err);
+        setError("Failed to load notifications.");
+        setLoading(false);
+      }
+    );
 
     return unsubscribe;
   }, [firebaseUser]);
@@ -164,6 +174,13 @@ export default function NotificationsPage() {
             <div className="flex items-center justify-center py-16">
               <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
             </div>
+          ) : error ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="text-center py-12 text-gray-400">
+                <HiBell size={48} className="mx-auto mb-4 opacity-50" />
+                <p className="font-medium text-gray-700">{error}</p>
+              </div>
+            </div>
           ) : notifications.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <div className="text-center py-12 text-gray-400">
@@ -180,6 +197,7 @@ export default function NotificationsPage() {
                 <a
                   key={notif.id}
                   href={getNotificationLink(notif)}
+                  onClick={() => { if (!notif.read) handleMarkRead(notif.id); }}
                   className={`block rounded-xl border transition-all duration-200 ${
                     notif.read
                       ? "bg-white border-gray-200 hover:border-orange-200 hover:shadow-sm"

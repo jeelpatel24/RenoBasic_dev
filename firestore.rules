@@ -115,15 +115,17 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Notifications collection — no delete for any role
+    // Notifications collection
     match /notifications/{notificationId} {
       allow read: if isAuthenticated() &&
                      request.auth.uid == resource.data.recipientUid;
       allow read: if isAdmin();
       allow update: if isAuthenticated() &&
                        request.auth.uid == resource.data.recipientUid;
+      allow delete: if isAuthenticated() &&
+                       request.auth.uid == resource.data.recipientUid;
       allow create: if isAuthenticated();
-      allow create, update: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
     // Settings (admin-managed only)

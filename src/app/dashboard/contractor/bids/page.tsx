@@ -44,8 +44,9 @@ export default function ContractorBidsPage() {
     try {
       await withdrawBid(bid.id);
       toast.success("Bid withdrawn successfully.");
-    } catch {
-      toast.error("Failed to withdraw bid.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to withdraw bid.";
+      toast.error(msg);
     } finally {
       setWithdrawing(null);
     }
@@ -111,8 +112,25 @@ export default function ContractorBidsPage() {
 
           {/* Bids List */}
           {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 animate-pulse">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 space-y-2">
+                      <div className="flex gap-2">
+                        <div className="h-5 w-24 bg-gray-200 rounded-full" />
+                        <div className="h-5 w-20 bg-gray-200 rounded-full" />
+                      </div>
+                      <div className="flex gap-4 mt-3">
+                        <div className="h-4 w-20 bg-gray-200 rounded" />
+                        <div className="h-4 w-24 bg-gray-200 rounded" />
+                      </div>
+                      <div className="h-3 w-32 bg-gray-100 rounded" />
+                    </div>
+                    <div className="h-5 w-5 bg-gray-200 rounded" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : filteredBids.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 p-6 text-center py-12">
@@ -127,7 +145,7 @@ export default function ContractorBidsPage() {
               {filteredBids.map((bid) => (
                 <Link
                   key={bid.id}
-                  href={`/dashboard/contractor/marketplace/${bid.projectId}`}
+                  href={`/dashboard/contractor/bids/${bid.id}`}
                   className="block bg-white rounded-xl border border-gray-200 p-5 hover:border-orange-200 hover:shadow-sm transition-all"
                 >
                   <div className="flex items-start justify-between">
@@ -190,7 +208,7 @@ export default function ContractorBidsPage() {
               </div>
               <p className="text-sm text-gray-600 mb-6">
                 Are you sure you want to withdraw your{" "}
-                <span className="font-medium text-gray-800">${confirmBid.totalCost.toFixed(0)}</span>{" "}
+                <span className="font-medium text-gray-800">${(confirmBid.totalAmount ?? confirmBid.totalCost ?? 0).toFixed(0)}</span>{" "}
                 bid for{" "}
                 <span className="font-medium text-gray-800">{confirmBid.projectCategory}</span>?
               </p>

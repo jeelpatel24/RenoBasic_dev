@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
@@ -8,9 +8,9 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import Button from "@/components/ui/Button";
 import { Bid } from "@/types";
-import { updateBidStatus } from "@/lib/bids";
+import { updateBidStatus, acceptBid } from "@/lib/bids";
 import { createNotification } from "@/lib/notifications";
-import { getHomeownerReviewedBidIds } from "@/lib/reviews";
+import { getHomeownerReviewedBidIds, getContractorRatingSummary } from "@/lib/reviews";
 import { ReviewModal } from "@/components/ui/ReviewModal";
 import toast from "react-hot-toast";
 import { formatDate } from "@/lib/utils";
@@ -32,6 +32,8 @@ export default function HomeownerBidsPage() {
   const [filter, setFilter] = useState<"all" | "submitted" | "accepted" | "rejected">("all");
   const [reviewedBidIds, setReviewedBidIds] = useState<Set<string>>(new Set());
   const [reviewModalBid, setReviewModalBid] = useState<Bid | null>(null);
+  const [ratingSummaries, setRatingSummaries] = useState<Record<string, { count: number; average: number }>>({});
+  const fetchedUids = useRef<Set<string>>(new Set());
 
   // Subscribe to bids in real time
   useEffect(() => {
@@ -70,19 +72,74 @@ export default function HomeownerBidsPage() {
       .catch((err) => console.error("Error refreshing reviewed bids:", err));
   };
 
+  // Load rating summaries for contractors we haven't fetched yet
+  useEffect(() => {
+    const newUids = bids
+      .map((b) => b.contractorUid)
+      .filter((uid): uid is string => !!uid && !fetchedUids.current.has(uid));
+    if (newUids.length === 0) return;
+    newUids.forEach((uid) => fetchedUids.current.add(uid));
+    Promise.all(
+      newUids.map((uid) =>
+        getContractorRatingSummary(uid)
+          .then((summary) => ({ uid, summary }))
+          .catch(() => ({ uid, summary: { count: 0, average: 0 } }))
+      )
+    ).then((results) => {
+      setRatingSummaries((prev) => {
+        const next = { ...prev };
+        results.forEach(({ uid, summary }) => { next[uid] = summary; });
+        return next;
+      });
+    });
+  }, [bids]);
+
   const handleStatusUpdate = async (bid: Bid, status: "accepted" | "rejected") => {
     setActionLoading(bid.id);
     try {
-      await updateBidStatus(bid.id, status);
-      await createNotification({
-        recipientUid: bid.contractorUid,
-        type: status === "accepted" ? "bid_accepted" : "bid_rejected",
-        title: status === "accepted" ? "Bid Accepted!" : "Bid Rejected",
-        message: `Your bid for "${bid.projectCategory}" has been ${status}.`,
-        read: false,
-        createdAt: new Date().toISOString(),
-        relatedId: bid.projectId,
-      });
+      if (status === "accepted") {
+        // Accept this bid, auto-reject siblings, move project to in_progress.
+        const rejected = await acceptBid(bid.id, bid.projectId);
+
+        // Notify the accepted contractor.
+        await createNotification({
+          recipientUid: bid.contractorUid,
+          type: "bid_accepted",
+          title: "Bid Accepted!",
+          message: `Your bid for "${bid.projectCategory}" has been accepted.`,
+          read: false,
+          createdAt: new Date().toISOString(),
+          relatedId: bid.projectId,
+        });
+
+        // Notify every auto-rejected contractor.
+        await Promise.all(
+          rejected.map((r) =>
+            createNotification({
+              recipientUid: r.contractorUid,
+              type: "bid_rejected",
+              title: "Bid Not Selected",
+              message: `Another contractor was selected for "${r.projectCategory}".`,
+              read: false,
+              createdAt: new Date().toISOString(),
+              relatedId: bid.projectId,
+            })
+          )
+        );
+      } else {
+        // Simple rejection of this single bid.
+        await updateBidStatus(bid.id, status);
+        await createNotification({
+          recipientUid: bid.contractorUid,
+          type: "bid_rejected",
+          title: "Bid Rejected",
+          message: `Your bid for "${bid.projectCategory}" has been rejected.`,
+          read: false,
+          createdAt: new Date().toISOString(),
+          relatedId: bid.projectId,
+        });
+      }
+
       toast.success(`Bid ${status} successfully!`);
     } catch {
       toast.error("Failed to update bid status.");
@@ -126,8 +183,33 @@ export default function HomeownerBidsPage() {
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 animate-pulse">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <div className="h-5 w-24 bg-gray-200 rounded-full" />
+                        <div className="h-5 w-20 bg-gray-200 rounded-full" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="h-4 w-4 bg-gray-200 rounded-full" />
+                        <div className="h-4 w-32 bg-gray-200 rounded" />
+                      </div>
+                    </div>
+                    <div className="h-4 w-20 bg-gray-200 rounded" />
+                  </div>
+                  <div className="border border-gray-100 rounded-lg p-3 mb-3 space-y-2">
+                    <div className="h-3 w-full bg-gray-100 rounded" />
+                    <div className="h-3 w-3/4 bg-gray-100 rounded" />
+                    <div className="h-3 w-1/2 bg-gray-100 rounded" />
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="h-4 w-24 bg-gray-200 rounded" />
+                    <div className="h-4 w-24 bg-gray-200 rounded" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : filteredBids.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 p-6 text-center py-12">
@@ -159,9 +241,19 @@ export default function HomeownerBidsPage() {
                           {bid.status.charAt(0).toUpperCase() + bid.status.slice(1)}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 mt-2 text-sm text-gray-600">
+                      <div className="flex items-center gap-2 mt-2 text-sm text-gray-600 flex-wrap">
                         <HiUser size={16} className="text-gray-400" />
                         <span className="font-medium">{bid.contractorName}</span>
+                        {bid.contractorUid && ratingSummaries[bid.contractorUid] !== undefined && (
+                          ratingSummaries[bid.contractorUid].count === 0 ? (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">New</span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-xs font-semibold text-amber-800">
+                              <HiStar size={13} className="text-yellow-400" />
+                              {ratingSummaries[bid.contractorUid].average.toFixed(1)} · {ratingSummaries[bid.contractorUid].count}
+                            </span>
+                          )
+                        )}
                       </div>
                     </div>
                     <p className="text-xs text-gray-400 shrink-0 ml-2">

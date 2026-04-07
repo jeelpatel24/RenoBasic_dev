@@ -3,8 +3,11 @@
  * -----------------------------------------------
  * Run AFTER you have created the Firestore database in Firebase Console.
  *
- * Usage:
- *   node setup-firestore.js
+ * Usage (Node 20+):
+ *   node --env-file=.env.local setup-firestore.js
+ *
+ * Requires .env.local in the same directory (see .env.example).
+ * Never hardcode credentials — always load from the environment file.
  *
  * What it does:
  *   1. Creates Firebase Auth accounts for test users (homeowner, contractor, admin)
@@ -30,14 +33,32 @@ const {
   where,
 } = require("firebase/firestore");
 
-// ─── Firebase Config (same as your app) ─────────────────────────────────────
+// ─── Firebase Config (loaded from .env.local via --env-file flag) ────────────
+const requiredVars = [
+  "NEXT_PUBLIC_FIREBASE_API_KEY",
+  "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
+  "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+  "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",
+  "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
+  "NEXT_PUBLIC_FIREBASE_APP_ID",
+];
+
+const missing = requiredVars.filter((v) => !process.env[v]);
+if (missing.length > 0) {
+  console.error(
+    "\n❌ Missing environment variables:\n  " + missing.join("\n  ") +
+    "\n\nRun with: node --env-file=.env.local setup-firestore.js\n"
+  );
+  process.exit(1);
+}
+
 const firebaseConfig = {
-  apiKey: "AIzaSyCRzlxHctEOsqUfHfOd1dNMVp-NCMlvLyU",
-  authDomain: "renobasics-d33a1.firebaseapp.com",
-  projectId: "renobasics-d33a1",
-  storageBucket: "renobasics-d33a1.firebasestorage.app",
-  messagingSenderId: "785918978262",
-  appId: "1:785918978262:web:2d8a45e412f15d35d08177",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
 const app = initializeApp(firebaseConfig);

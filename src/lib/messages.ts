@@ -186,6 +186,75 @@ export function subscribeToConversations(
 }
 
 /**
+ * Subscribe to the total number of unread messages across all conversations for a user.
+ * Queries read==false and filters client-side for messages not from the current user,
+ * avoiding a compound inequality index requirement.
+ */
+export function subscribeToUnreadMessageCount(
+  uid: string,
+  role: "homeowner" | "contractor",
+  callback: (count: number) => void
+): Unsubscribe {
+  const matchField = role === "homeowner" ? "homeownerUid" : "contractorUid";
+  const unsubConvMap = new Map<string, Unsubscribe>();
+  const countMap = new Map<string, number>();
+
+  const emitTotal = () => {
+    let total = 0;
+    countMap.forEach((v) => { total += v; });
+    callback(total);
+  };
+
+  const convQ = query(
+    collection(db, "conversations"),
+    where(matchField, "==", uid)
+  );
+
+  const unsubConv = onSnapshot(
+    convQ,
+    (snapshot) => {
+      const activeIds = new Set(snapshot.docs.map((d) => d.id));
+
+      // Remove subs for deleted conversations.
+      unsubConvMap.forEach((unsub, id) => {
+        if (!activeIds.has(id)) {
+          unsub();
+          unsubConvMap.delete(id);
+          countMap.delete(id);
+        }
+      });
+
+      // Add subs for new conversations.
+      snapshot.docs.forEach((convDoc) => {
+        if (!unsubConvMap.has(convDoc.id)) {
+          const convId = convDoc.id;
+          const msgQ = query(
+            collection(db, "conversations", convId, "messages"),
+            where("read", "==", false)
+          );
+          const unsubMsg = onSnapshot(msgQ, (msgSnap) => {
+            const unread = msgSnap.docs.filter(
+              (d) => d.data().senderId !== uid
+            ).length;
+            countMap.set(convId, unread);
+            emitTotal();
+          });
+          unsubConvMap.set(convId, unsubMsg);
+        }
+      });
+
+      if (snapshot.empty) callback(0);
+    },
+    () => callback(0)
+  );
+
+  return () => {
+    unsubConv();
+    unsubConvMap.forEach((unsub) => unsub());
+  };
+}
+
+/**
  * Subscribe to messages in a conversation (real-time).
  */
 export function subscribeToMessages(

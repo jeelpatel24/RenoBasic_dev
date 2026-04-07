@@ -3,14 +3,45 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
+// ---------------------------------------------------------------------------
+// All Firebase credentials are loaded from environment variables.
+// Local development: set these in .env.local (gitignored — never commit it).
+// Vercel deployment: add each variable in the Vercel project dashboard.
+// See .env.example for the full list of required variables.
+// ---------------------------------------------------------------------------
+
+const requiredEnvVars = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+};
+
+// Fail fast during development if any required variable is missing.
+if (process.env.NODE_ENV !== "production") {
+  const missing = Object.entries(requiredEnvVars)
+    .filter(([, value]) => !value)
+    .map(([key]) => `NEXT_PUBLIC_FIREBASE_${key.replace(/([A-Z])/g, "_$1").toUpperCase()}`);
+
+  if (missing.length > 0) {
+    throw new Error(
+      `[Firebase] Missing required environment variables:\n  ${missing.join("\n  ")}\n` +
+      `Copy .env.example to .env.local and fill in the values.`
+    );
+  }
+}
+
 const firebaseConfig = {
-  apiKey: "AIzaSyCRzlxHctEOsqUfHfOd1dNMVp-NCMlvLyU",
-  authDomain: "renobasics-d33a1.firebaseapp.com",
-  projectId: "renobasics-d33a1",
-  storageBucket: "renobasics-d33a1.firebasestorage.app",
-  messagingSenderId: "785918978262",
-  appId: "1:785918978262:web:2d8a45e412f15d35d08177",
-  measurementId: "G-C2YBL90K57",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];

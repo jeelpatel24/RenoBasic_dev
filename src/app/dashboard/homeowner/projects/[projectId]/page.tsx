@@ -18,7 +18,7 @@ import {
   PreferredStartDate,
   PropertyType,
 } from "@/types";
-import { getBidsForProject, updateBidStatus } from "@/lib/bids";
+import { getBidsForProject, updateBidStatus, acceptBid } from "@/lib/bids";
 import { createNotification } from "@/lib/notifications";
 import { deleteProject } from "@/lib/projects";
 import toast from "react-hot-toast";
@@ -72,16 +72,45 @@ export default function HomeownerProjectDetailPage() {
   const handleBidStatus = async (bid: Bid, status: "accepted" | "rejected") => {
     setActionLoading(bid.id);
     try {
-      await updateBidStatus(bid.id, status);
-      await createNotification({
-        recipientUid: bid.contractorUid,
-        type: status === "accepted" ? "bid_accepted" : "bid_rejected",
-        title: status === "accepted" ? "Bid Accepted!" : "Bid Rejected",
-        message: `Your bid for "${bid.projectCategory}" has been ${status}.`,
-        read: false,
-        createdAt: new Date().toISOString(),
-        relatedId: projectId,
-      });
+      if (status === "accepted") {
+        // Batch: accept this bid, auto-reject sibling bids, set project → in_progress.
+        const rejected = await acceptBid(bid.id, projectId);
+        await createNotification({
+          recipientUid: bid.contractorUid,
+          type: "bid_accepted",
+          title: "Bid Accepted!",
+          message: `Your bid for "${bid.projectCategory}" has been accepted.`,
+          read: false,
+          createdAt: new Date().toISOString(),
+          relatedId: projectId,
+        });
+        // Notify every auto-rejected contractor.
+        for (const r of rejected) {
+          await createNotification({
+            recipientUid: r.contractorUid,
+            type: "bid_rejected",
+            title: "Bid Not Selected",
+            message: `Another contractor was selected for "${r.projectCategory}".`,
+            read: false,
+            createdAt: new Date().toISOString(),
+            relatedId: projectId,
+          });
+        }
+        // Reflect project status change locally.
+        setProject((prev) => prev ? { ...prev, status: "in_progress" } : prev);
+      } else {
+        // Simple rejection of this single bid.
+        await updateBidStatus(bid.id, status);
+        await createNotification({
+          recipientUid: bid.contractorUid,
+          type: "bid_rejected",
+          title: "Bid Rejected",
+          message: `Your bid for "${bid.projectCategory}" has been rejected.`,
+          read: false,
+          createdAt: new Date().toISOString(),
+          relatedId: projectId,
+        });
+      }
       toast.success(`Bid ${status}!`);
       const updated = await getBidsForProject(projectId);
       setBids(updated);

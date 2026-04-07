@@ -20,7 +20,6 @@ import {
   HiArrowDown,
   HiRefresh,
   HiCheckCircle,
-  HiExclamationCircle,
 } from "react-icons/hi";
 
 const CREDIT_PACKAGES: CreditPackage[] = [
@@ -49,79 +48,66 @@ function CreditsPageContent() {
   const [transactionsLoading, setTransactionsLoading] = useState(true);
   const [creditPackages, setCreditPackages] = useState<CreditPackage[]>(CREDIT_PACKAGES);
 
-  // Payment verification state
-  const [paymentPending, setPaymentPending] = useState(false);
-  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  // "waiting" = redirected from Stripe, pending webhook
+  // "confirmed" = credits arrived
+  // "idle" = normal state
+  const [paymentState, setPaymentState] = useState<"idle" | "waiting" | "confirmed">("idle");
+  const [balanceBefore, setBalanceBefore] = useState<number>(-1);
   const [waitSeconds, setWaitSeconds] = useState(0);
-  const balanceAtRedirectRef = useRef<number | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const detectedRef = useRef(false); // prevent double-firing confirmed state
 
   const creditBalance = contractor?.creditBalance ?? 0;
 
-  // Detect redirect back from Stripe with ?status=success
+  // ── Step 1: Detect return from Stripe ──────────────────────────────────────
+  // Runs once on mount. Reads the pre-payment balance from sessionStorage
+  // (saved in handleBuyCredits before leaving), then starts waiting state.
   useEffect(() => {
-    if (searchParams.get("status") === "success") {
-      // Read the balance that was stored in sessionStorage BEFORE the user
-      // left for Stripe. This avoids the race condition where the webhook
-      // fires so quickly that Firestore is already updated by the time this
-      // page loads, making creditBalance already reflect the new value.
-      const stored = sessionStorage.getItem("creditBalanceBeforePayment");
-      balanceAtRedirectRef.current = stored !== null ? parseInt(stored, 10) : creditBalance;
-      sessionStorage.removeItem("creditBalanceBeforePayment");
+    if (searchParams.get("status") !== "success") return;
 
-      // If balance is already higher than before-payment value, webhook was instant
-      if (creditBalance > (balanceAtRedirectRef.current ?? creditBalance)) {
-        setPaymentConfirmed(true);
-        toast.success(`Credits added! New balance: ${creditBalance}`, { duration: 5000 });
-        setTimeout(() => setPaymentConfirmed(false), 6000);
-      } else {
-        setPaymentPending(true);
-        setWaitSeconds(0);
-        timerRef.current = setInterval(() => {
-          setWaitSeconds((s) => s + 1);
-        }, 1000);
-      }
+    const stored = sessionStorage.getItem("creditBalanceBeforePayment");
+    const before = stored !== null ? parseInt(stored, 10) : -1;
+    sessionStorage.removeItem("creditBalanceBeforePayment");
 
-      // Clean URL so the banner doesn't reappear on manual refresh
-      router.replace("/dashboard/contractor/credits");
-    }
+    setBalanceBefore(before);
+    setPaymentState("waiting");
+    detectedRef.current = false;
+
+    router.replace("/dashboard/contractor/credits");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Watch for credit balance increase — confirms webhook fired successfully
+  // ── Step 2: Watch balance changes while waiting ─────────────────────────────
+  // Runs every time creditBalance updates (real-time from Firestore via AuthContext).
+  // As soon as balance exceeds pre-payment value → credits confirmed.
   useEffect(() => {
-    if (!paymentPending || paymentConfirmed) return;
-    if (balanceAtRedirectRef.current === null) return;
+    if (paymentState !== "waiting") return;
+    if (detectedRef.current) return;
+    // balanceBefore === -1 means sessionStorage had no value (edge case).
+    // In that case skip auto-detection; user will see balance update live.
+    if (balanceBefore < 0) return;
 
-    if (creditBalance > balanceAtRedirectRef.current) {
-      // Credits arrived!
-      if (timerRef.current) clearInterval(timerRef.current);
-      setPaymentPending(false);
-      setPaymentConfirmed(true);
-      toast.success(`Credits added! New balance: ${creditBalance}`, { duration: 5000 });
-
-      // Dismiss the confirmed banner after 6 seconds
-      setTimeout(() => setPaymentConfirmed(false), 6000);
+    if (creditBalance > balanceBefore) {
+      detectedRef.current = true;
+      const added = creditBalance - balanceBefore;
+      setPaymentState("confirmed");
+      toast.success(`+${added} credit${added !== 1 ? "s" : ""} added! Balance: ${creditBalance}`, {
+        duration: 6000,
+      });
+      setTimeout(() => setPaymentState("idle"), 8000);
     }
-  }, [creditBalance, paymentPending, paymentConfirmed]);
+  }, [creditBalance, paymentState, balanceBefore]);
 
-  // Safety timeout — after 60 s still no update, show a warning
+  // ── Step 3: Elapsed-time counter while waiting ──────────────────────────────
   useEffect(() => {
-    if (!paymentPending) return;
-    if (waitSeconds >= 60) {
-      if (timerRef.current) clearInterval(timerRef.current);
-      setPaymentPending(false);
+    if (paymentState !== "waiting") {
+      setWaitSeconds(0);
+      return;
     }
-  }, [waitSeconds, paymentPending]);
+    const timer = setInterval(() => setWaitSeconds((s) => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, [paymentState]);
 
-  // Cleanup timer on unmount
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, []);
-
-  // Load admin-configurable packages (falls back to CREDIT_PACKAGES silently)
+  // Load admin-configurable packages (falls back silently)
   useEffect(() => {
     const fetchPackages = async () => {
       try {
@@ -169,6 +155,7 @@ function CreditsPageContent() {
     return () => unsubscribe();
   }, [userProfile]);
 
+  // Redirect to Stripe — saves current balance first so detection works on return
   const handleBuyCredits = (pkg: CreditPackage) => {
     if (!contractor?.uid) return;
 
@@ -178,7 +165,7 @@ function CreditsPageContent() {
       return;
     }
 
-    // Store current balance before leaving — used to detect credit increase on return
+    // Save CURRENT balance before leaving — used for credit change detection on return
     sessionStorage.setItem("creditBalanceBeforePayment", String(creditBalance));
 
     const params = new URLSearchParams({
@@ -215,39 +202,31 @@ function CreditsPageContent() {
         </p>
       </div>
 
-      {/* Payment Pending Banner */}
-      {paymentPending && (
+      {/* Payment Waiting Banner */}
+      {paymentState === "waiting" && (
         <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex items-center gap-4">
-          <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin shrink-0" />
+          <div className="w-7 h-7 border-4 border-amber-500 border-t-transparent rounded-full animate-spin shrink-0" />
           <div>
-            <p className="font-semibold text-amber-800">Verifying your payment…</p>
+            <p className="font-semibold text-amber-800">Payment received — adding your credits…</p>
             <p className="text-sm text-amber-700 mt-0.5">
-              Waiting for Stripe to confirm ({waitSeconds}s). Your credits will appear here automatically.
+              {waitSeconds < 15
+                ? "This usually takes just a few seconds."
+                : waitSeconds < 45
+                ? `Still processing… (${waitSeconds}s). Please wait.`
+                : "Taking longer than usual. Your credits will appear once confirmed by Stripe."}
             </p>
           </div>
         </div>
       )}
 
       {/* Payment Confirmed Banner */}
-      {paymentConfirmed && (
+      {paymentState === "confirmed" && (
         <div className="bg-green-50 border border-green-300 rounded-xl p-4 flex items-center gap-3">
           <HiCheckCircle size={24} className="text-green-500 shrink-0" />
           <p className="font-semibold text-green-800">
-            Credits added successfully! Your new balance is <span className="text-green-600">{creditBalance}</span>.
+            Credits added successfully! Your new balance is{" "}
+            <span className="text-green-600">{creditBalance}</span>.
           </p>
-        </div>
-      )}
-
-      {/* Timeout Warning — webhook took too long */}
-      {!paymentPending && !paymentConfirmed && waitSeconds >= 60 && (
-        <div className="bg-red-50 border border-red-300 rounded-xl p-4 flex items-center gap-3">
-          <HiExclamationCircle size={24} className="text-red-500 shrink-0" />
-          <div>
-            <p className="font-semibold text-red-800">Credits are taking longer than expected.</p>
-            <p className="text-sm text-red-700 mt-0.5">
-              Your payment was received. Credits usually arrive within 10 seconds — if the balance still hasn&apos;t updated, please refresh the page or contact support.
-            </p>
-          </div>
         </div>
       )}
 
@@ -295,7 +274,6 @@ function CreditsPageContent() {
                     </span>
                   </div>
                 )}
-
                 <div className="text-center flex-1">
                   <h3 className="text-lg font-bold text-gray-900 mt-2">{pkg.name}</h3>
                   <div className="mt-4">
@@ -308,7 +286,6 @@ function CreditsPageContent() {
                     <p className="text-sm text-gray-500">${pkg.pricePerCredit.toFixed(2)}/credit</p>
                   </div>
                 </div>
-
                 <div className="mt-6">
                   <Button
                     fullWidth

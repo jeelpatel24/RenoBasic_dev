@@ -232,7 +232,7 @@ export interface CreditTransaction {
   contractorUid: string;
   creditAmount: number;
   cost: number;
-  stripeTransactionId?: string;
+  stripeSessionId?: string;
   type: "purchase" | "unlock" | "refund";
   relatedProjectId?: string;
   timestamp: string;

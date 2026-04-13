@@ -99,10 +99,15 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() &&
                        request.auth.uid == request.resource.data.contractorUid;
-      // Homeowners can update bid status for their own projects
+      // Homeowners can update ONLY the status and updatedAt fields on bids for
+      // their own projects. status must be 'accepted' or 'rejected' — it cannot
+      // be set back to 'submitted'. The affectedKeys() check prevents overwriting
+      // any contractor-submitted fields (totalCost, lineItems, notes, etc.).
       allow update: if isAuthenticated() &&
                        exists(/databases/$(database)/documents/projects/$(resource.data.projectId)) &&
-                       get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data.homeownerUid == request.auth.uid;
+                       get(/databases/$(database)/documents/projects/$(resource.data.projectId)).data.homeownerUid == request.auth.uid &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+                       request.resource.data.status in ['accepted', 'rejected'];
       // Contractors can withdraw (delete) their own submitted bids only
       allow delete: if isAuthenticated() &&
                        resource.data.contractorUid == request.auth.uid &&

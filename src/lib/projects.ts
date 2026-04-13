@@ -16,15 +16,19 @@ import { ProjectUnlock, ProjectPrivateDetails } from "@/types";
 /**
  * Unlock a project for a contractor. Performs an atomic transaction:
  * - Validates the contractor hasn't already unlocked this project
+ * - Reads the authoritative creditCost from Firestore (never from the caller)
  * - Validates the contractor has sufficient credit balance
  * - Deducts credits from the contractor's balance
  * - Creates an unlock record
  * - Creates a credit transaction record
+ *
+ * creditCost is intentionally NOT a parameter — reading it from the project
+ * document inside the transaction prevents a caller from forging a lower value
+ * (e.g. passing 0 from browser devtools to unlock for free).
  */
 export async function unlockProject(
   contractorUid: string,
-  projectId: string,
-  creditCost: number
+  projectId: string
 ): Promise<void> {
   const unlockDocId = `${contractorUid}_${projectId}`;
 
@@ -44,19 +48,25 @@ export async function unlockProject(
     }
     const currentBalance = (userSnap.data().creditBalance ?? 0) as number;
 
-    if (currentBalance < creditCost) {
-      throw new Error(
-        `Insufficient credits. You need ${creditCost} credits but have ${currentBalance}.`
-      );
-    }
-
-    // Get homeownerUid from project
+    // Read creditCost from the project document — this is the authoritative value.
+    // The caller never supplies this; it cannot be forged.
     const projectRef = doc(db, "projects", projectId);
     const projectSnap = await transaction.get(projectRef);
     if (!projectSnap.exists()) {
       throw new Error("Project not found.");
     }
-    const homeownerUid = projectSnap.data().homeownerUid as string;
+    const projectData = projectSnap.data();
+    const creditCost = (projectData.creditCost as number) ?? 0;
+    if (creditCost <= 0) {
+      throw new Error("This project has an invalid credit cost.");
+    }
+    const homeownerUid = projectData.homeownerUid as string;
+
+    if (currentBalance < creditCost) {
+      throw new Error(
+        `Insufficient credits. You need ${creditCost} credits but have ${currentBalance}.`
+      );
+    }
 
     const now = new Date().toISOString();
 

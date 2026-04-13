@@ -161,7 +161,7 @@ export default function ContractorMarketplacePage() {
     if (!confirmUnlock || !contractor) return;
     setUnlocking(confirmUnlock.id);
     try {
-      await unlockProject(contractor.uid, confirmUnlock.id, confirmUnlock.creditCost);
+      await unlockProject(contractor.uid, confirmUnlock.id);
       await createNotification({
         recipientUid: confirmUnlock.homeownerUid,
         type: "project_unlocked",

@@ -9,7 +9,7 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Project,
   ProjectCategory,
@@ -74,6 +74,7 @@ function SectionHeader({
 /* ------------------------------------------------------------------ */
 export default function HomeownerProjectsPage() {
   const { userProfile } = useAuth();
+  const router = useRouter();
 
   /* ── form state ─────────────────────────────────────────────────── */
   const [form, setForm] = useState({
@@ -982,10 +983,15 @@ export default function HomeownerProjectsPage() {
             ) : (
               <div className="space-y-4">
                 {projects.map((project) => (
-                  <Link
+                  // Use a div + router.push instead of <Link> so that a native
+                  // <select> inside is never wrapped in an <a> tag.
+                  // Placing interactive form elements inside <a> is invalid HTML
+                  // and causes browsers to navigate on select-click regardless
+                  // of stopPropagation.
+                  <div
                     key={project.id}
-                    href={`/dashboard/homeowner/projects/${project.id}`}
-                    className="block border border-gray-200 rounded-lg p-5 hover:border-orange-200 hover:shadow-sm transition-all"
+                    onClick={() => router.push(`/dashboard/homeowner/projects/${project.id}`)}
+                    className="block border border-gray-200 rounded-lg p-5 hover:border-orange-200 hover:shadow-sm transition-all cursor-pointer"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                       <div className="flex-1">
@@ -1001,32 +1007,34 @@ export default function HomeownerProjectsPage() {
                             {project.budgetLabel ||
                               BUDGET_LABELS[project.budgetRange]}
                           </span>
-                          <select
-                            value={project.status}
-                            disabled={statusUpdating === project.id}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) =>
-                              handleStatusUpdate(
-                                e,
-                                project.id,
-                                e.target.value as "open" | "in_progress" | "completed" | "closed"
-                              )
-                            }
-                            className={`text-xs font-medium px-2.5 py-1 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-400 ${
-                              project.status === "open"
-                                ? "bg-green-100 text-green-700"
-                                : project.status === "in_progress"
-                                ? "bg-blue-100 text-blue-700"
-                                : project.status === "completed"
-                                ? "bg-gray-100 text-gray-700"
-                                : "bg-red-100 text-red-700"
-                            } ${statusUpdating === project.id ? "opacity-50 cursor-not-allowed" : ""}`}
-                          >
-                            <option value="open">Open</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="completed">Completed</option>
-                            <option value="closed">Closed</option>
-                          </select>
+                          {/* Isolate the select from the card's onClick entirely */}
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <select
+                              value={project.status}
+                              disabled={statusUpdating === project.id}
+                              onChange={(e) =>
+                                handleStatusUpdate(
+                                  e,
+                                  project.id,
+                                  e.target.value as "open" | "in_progress" | "completed" | "closed"
+                                )
+                              }
+                              className={`text-xs font-medium px-2.5 py-1 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-400 ${
+                                project.status === "open"
+                                  ? "bg-green-100 text-green-700"
+                                  : project.status === "in_progress"
+                                  ? "bg-blue-100 text-blue-700"
+                                  : project.status === "completed"
+                                  ? "bg-gray-100 text-gray-700"
+                                  : "bg-red-100 text-red-700"
+                              } ${statusUpdating === project.id ? "opacity-50 cursor-not-allowed" : ""}`}
+                            >
+                              <option value="open">Open</option>
+                              <option value="in_progress">In Progress</option>
+                              <option value="completed">Completed</option>
+                              <option value="closed">Closed</option>
+                            </select>
+                          </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-4 mt-3 text-xs text-gray-500">
                           <span className="flex items-center gap-1">
@@ -1058,7 +1066,7 @@ export default function HomeownerProjectsPage() {
                         <HiArrowRight size={16} className="text-gray-400" />
                       </div>
                     </div>
-                  </Link>
+                  </div>
                 ))}
               </div>
             )}

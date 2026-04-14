@@ -3,14 +3,12 @@
 import { useState, useEffect } from "react";
 import { collection, addDoc, query, where, onSnapshot, orderBy } from "firebase/firestore";
 import { updateProjectStatus } from "@/lib/projects";
-// import { ref, uploadBytes, getDownloadURL } from "firebase/storage"; // TODO: enable when Firebase Storage is activated
 import { db } from "@/lib/firebase";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-// import ImageUpload from "@/components/ui/ImageUpload"; // TODO: enable when Firebase Storage is activated
 import Link from "next/link";
 import {
   Project,
@@ -101,7 +99,6 @@ export default function HomeownerProjectsPage() {
     contactPreference: "in_app",
   });
 
-  // const [imageFiles, setImageFiles] = useState<File[]>([]); // TODO: enable when Firebase Storage is activated
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -287,9 +284,6 @@ export default function HomeownerProjectsPage() {
       };
 
       await addDoc(collection(db, "projects"), projectData);
-
-      // TODO: image upload — enable when Firebase Storage is activated
-      // if (imageFiles.length > 0) { ... upload to storage ... }
 
       toast.success("Project posted successfully!");
       setSuccessMessage(
@@ -938,26 +932,11 @@ export default function HomeownerProjectsPage() {
               </div>
 
               {/* -------------------------------------------------- */}
-              {/*  SECTION 6 — File Uploads (Placeholder)              */}
+              {/*  SECTION 6 — Review & Submit                         */}
               {/* -------------------------------------------------- */}
               <div className="bg-white rounded-xl border border-gray-200 p-6">
                 <SectionHeader
                   number={6}
-                  title="File Uploads"
-                  subtitle="Attach photos, plans, or documents related to your project."
-                />
-
-                <div className="flex items-center justify-center h-24 rounded-lg border-2 border-dashed border-gray-200 bg-gray-50">
-                  <p className="text-sm text-gray-400">Photo uploads coming soon</p>
-                </div>
-              </div>
-
-              {/* -------------------------------------------------- */}
-              {/*  SECTION 7 — Review & Submit                         */}
-              {/* -------------------------------------------------- */}
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <SectionHeader
-                  number={7}
                   title="Review & Submit"
                   subtitle="Make sure everything looks good before posting."
                 />

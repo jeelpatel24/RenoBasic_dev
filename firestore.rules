@@ -49,8 +49,12 @@ service cloud.firestore {
       allow read: if isAuthenticated() &&
                      request.auth.uid == resource.data.contractorUid;
       allow read: if isAdmin();
+      // Clients may only create unlock transactions for themselves.
+      // purchase/refund records are written by the Stripe webhook via Admin SDK
+      // (which bypasses rules entirely) — clients cannot forge those types.
       allow create: if isAuthenticated() &&
-                       request.resource.data.contractorUid == request.auth.uid;
+                       request.resource.data.contractorUid == request.auth.uid &&
+                       request.resource.data.type == 'unlock';
       allow write: if isAdmin();
     }
 

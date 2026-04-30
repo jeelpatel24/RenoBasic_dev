@@ -33,7 +33,7 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
     }
   }, [firebaseUser, userProfile, loading, allowedRoles, router]);
 
-  if (loading) {
+  if (loading || (firebaseUser && !userProfile)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-4">
